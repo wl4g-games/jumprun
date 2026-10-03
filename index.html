@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#eee9e0">
+  <title>动物跳跳跑 · 跳一下，跑更远</title>
+</head>
+<body>
+<div id="app">
+  <main>
+    <section id="game-card" class="game-card" aria-label="3D 动物跑酷" data-i18n-label="3D 动物跑酷">
+      <div class="game-top" aria-label="游戏信息" data-i18n-label="游戏信息">
+        <a class="brand" href="./"><span id="brand-animal" class="brand-icon" aria-hidden="true">🦖</span><span data-i18n="动物跳跳跑">动物跳跳跑</span></a>
+        <div class="scores">
+          <span class="score-main"><span data-i18n="星星">星星</span><b id="score">00000</b></span>
+          <span><span data-i18n="速度">速度</span><b id="speed">1.00×</b></span>
+          <span><span data-i18n="最好成绩">最好成绩</span><b id="best">00000</b></span>
+          <span class="lock-score"><span id="lock-label" data-i18n="学习时间">学习时间</span><b id="kid-lock-time">10:00</b></span>
+        </div>
+        <div class="camera-card camera-mini">
+          <div class="section-heading"><h2><span class="dot" id="live-dot"></span> <span data-i18n="摄像头">摄像头</span></h2></div>
+          <div class="preview"><video id="video" autoplay muted playsinline hidden></video><canvas id="pose-overlay" hidden></canvas></div>
+          <p id="camera-status" role="status">未开启</p>
+        </div>
+      </div>
+      <div class="stage">
+        <canvas tabindex="0" id="game-canvas" aria-label="3D 动物自动跑酷画面" data-i18n-label="3D 动物自动跑酷画面"></canvas>
+        <div id="game-overlay">
+          <div id="gesture-guide" hidden aria-label="跳一次 · 开始" data-i18n-label="跳一次 · 开始">
+            <div id="gesture-fill"></div>
+            <canvas id="ready-animal" width="360" height="252" aria-label="跳一次 · 开始" data-i18n-label="跳一次 · 开始"></canvas>
+            <small data-i18n="跳一次 · 开始">跳一次 · 开始</small>
+          </div>
+          <span id="game-message" role="status">加载中…</span>
+          <button id="camera-enable" type="button" hidden data-i18n="开启摄像头">开启摄像头</button>
+        </div>
+      </div>
+      <div class="game-actions"><div><button id="sound-button" aria-label="静音" data-i18n-label="静音" aria-pressed="false">🔊</button><button id="language-button" type="button" aria-label="Switch to English">EN</button></div></div>
+      <div class="share-actions"><span id="share-status" role="status"></span><button id="share-button" type="button" aria-label="分享最好成绩" data-i18n-label="分享最好成绩"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M5 13v7h14v-7" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="分享">分享</span></button></div>
+    </section>
+
+    <dialog id="share-dialog"><img id="share-preview" alt="最好成绩分享卡" data-i18n-label="最好成绩分享卡"><p id="share-image-status" role="status"></p><div class="share-card-actions"><a id="share-download" download="jump-run-best.png" data-i18n="保存图片">保存图片</a><button id="share-image-button" type="button" data-i18n="分享图片">分享图片</button><form method="dialog"><button data-i18n="关闭预览">关闭预览</button></form></div></dialog>
+
+    <details class="settings">
+      <summary data-i18n="设置">设置</summary>
+      <section class="setup-grid">
+        <div class="preference-actions">
+          <button id="open-setup" type="button" data-i18n="选择动物与小朋友锁">选择动物与小朋友锁</button>
+          <span id="settings-summary"></span>
+        </div>
+        <div class="camera-actions"><button id="start-button" data-i18n="开启">开启</button><button id="stop-button" disabled data-i18n="关闭">关闭</button><select id="device-select" aria-label="选择摄像头" data-i18n-label="选择摄像头" disabled><option value="" data-i18n="默认摄像头">默认摄像头</option></select></div>
+        <div class="instructions">
+          <p class="note" data-i18n="空格：开始 / 跳跃 / 失败后重来。体感：跳一次开始，跳一次重来。">空格：开始 / 跳跃 / 失败后重来。体感：跳一次开始，跳一次重来。</p>
+          <p class="note" data-i18n="胡萝卜：1 星。越过随机障碍可得星星，跳得越准奖励越高。">胡萝卜：1 星。越过随机障碍可得星星，跳得越准奖励越高。</p>
+          <p id="tracking-status" role="status"></p>
+          <div class="sensitivity"><label for="sensitivity" data-i18n="灵敏度">灵敏度</label><input id="sensitivity" type="range" min="0.65" max="1.6" step="0.05" value="1"><output id="sensitivity-value" data-i18n="标准">标准</output><button id="recalibrate" data-i18n="校准">校准</button><button class="primary" id="play-button" disabled><span data-i18n="开始游戏">开始游戏</span> <span>↗</span></button></div>
+        </div>
+      </section>
+    </details>
+  </main>
+</div>
+
+<dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
+  <div class="setup-hero"><span aria-hidden="true">🌿</span><div><h1 id="setup-title" data-i18n="出发前，选一位弹跳伙伴">出发前，选一位弹跳伙伴</h1><p data-i18n="默认是霸王龙，也可以从十种动物中选择。">默认是霸王龙，也可以从十种动物中选择。</p></div></div>
+  <section aria-labelledby="animal-title"><h2 id="animal-title" data-i18n="弹跳动物">弹跳动物</h2><div id="animal-picker" class="animal-picker" role="radiogroup" aria-label="弹跳动物" data-i18n-label="弹跳动物"></div></section>
+  <section class="kid-lock-config" aria-labelledby="kid-lock-title">
+    <div class="kid-lock-heading"><div><h2 id="kid-lock-title" data-i18n="小朋友锁">小朋友锁</h2><p data-i18n="时间到了会暂停游戏，完成有趣的小测验后继续。">时间到了会暂停游戏，完成有趣的小测验后继续。</p></div><label class="switch"><input id="kid-lock-enabled" type="checkbox" checked><span></span><b data-i18n="开启">开启</b></label></div>
+    <div class="kid-lock-fields">
+      <label><span data-i18n="每次游戏时间">每次游戏时间</span><select id="lock-duration"><option value="5" data-i18n="5 分钟">5 分钟</option><option value="10" selected data-i18n="10 分钟">10 分钟</option><option value="15" data-i18n="15 分钟">15 分钟</option><option value="20" data-i18n="20 分钟">20 分钟</option><option value="30" data-i18n="30 分钟">30 分钟</option></select></label>
+      <label><span data-i18n="答对几题解锁">答对几题解锁</span><select id="unlock-count"><option value="1" data-i18n="1 题">1 题</option><option value="2" selected data-i18n="2 题">2 题</option><option value="3" data-i18n="3 题">3 题</option></select></label>
+    </div>
+    <p class="setup-note" data-i18n="题库内置 100 道语文、数学、英语、地理和物理趣题，适合约 12 岁。">题库内置 100 道语文、数学、英语、地理和物理趣题，适合约 12 岁。</p>
+  </section>
+  <div class="setup-actions"><button id="setup-cancel" type="button" hidden data-i18n="取消">取消</button><button id="setup-start" class="primary" type="button" data-i18n="保存并开始冒险">保存并开始冒险</button></div>
+</dialog>
+
+<dialog id="quiz-dialog" class="quiz-dialog" aria-labelledby="quiz-title">
+  <div class="quiz-topline"><span id="quiz-subject" class="quiz-subject"></span><span id="quiz-progress"></span></div>
+  <h1 id="quiz-title" data-i18n="学习补给站">学习补给站</h1>
+  <p class="quiz-intro" data-i18n="动动脑筋，答对设定数量的题目就能继续跑！">动动脑筋，答对设定数量的题目就能继续跑！</p>
+  <h2 id="quiz-prompt"></h2>
+  <div id="quiz-answers" class="quiz-answers"></div>
+  <p id="quiz-feedback" class="quiz-feedback" aria-live="polite"></p>
+  <button id="quiz-next" class="primary quiz-next" type="button" hidden data-i18n="下一题">下一题</button>
+</dialog>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
