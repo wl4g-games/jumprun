@@ -12,9 +12,11 @@ export async function prepareMotion({ play, load, isCurrent, ready, list }) {
   await Promise.all([play(), load()]);
   if (!isCurrent()) return false;
   ready();
-  try {
-    await list();
-  } catch {
+  if (list) {
+    try {
+      await list();
+    } catch {
+    }
   }
   return isCurrent();
 }

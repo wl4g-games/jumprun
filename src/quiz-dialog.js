@@ -1,61 +1,81 @@
 import { createQuizSession } from "./quiz-session.js";
 
-export function createQuizDialog(elements, translate, onUnlocked) {
-  const { dialog, subject, progress, prompt, answers, feedback, nextButton } = elements;
+export function createQuizDialog(elements, options) {
+  const { dialog, subject, progress, prompt, answers, feedback } = elements;
+  const { translate, localizeQuestion, onUnlocked, transitionDelay = 900, createSession = createQuizSession } = options;
   let session = null;
-  let answered = false;
+  let answerState = null;
+  let transitionTimer = null;
+  let generation = 0;
+
+  function clearTransition() {
+    clearTimeout(transitionTimer);
+    transitionTimer = null;
+  }
+
+  function showFeedback(localizedItem) {
+    const { result, selectedIndex } = answerState;
+    const buttons = [...answers.querySelectorAll("button")];
+    for (const button of buttons) button.disabled = true;
+    buttons[result.correctAnswer]?.classList.add("correct");
+    if (!result.isCorrect) buttons[selectedIndex]?.classList.add("wrong");
+    feedback.textContent = `${result.isCorrect ? translate("回答正确") : translate("这题再想想")} ${localizedItem.explanation}`;
+    feedback.className = `quiz-feedback ${result.isCorrect ? "is-correct" : "is-wrong"}`;
+  }
 
   function render() {
-    const item = session.current();
+    const item = localizeQuestion(session.current());
     const state = session.progress();
-    answered = false;
     subject.textContent = item.subject;
     progress.textContent = `${translate("答对进度")} ${state.correct}/${state.required}`;
     prompt.textContent = item.prompt;
     feedback.textContent = "";
     feedback.className = "quiz-feedback";
-    nextButton.hidden = true;
     answers.replaceChildren(...item.options.map((option, index) => {
       const button = document.createElement("button");
+      const marker = document.createElement("span");
       button.type = "button";
       button.className = "quiz-option";
       button.dataset.index = String(index);
-      button.innerHTML = `<span>${String.fromCharCode(65 + index)}</span>${option}`;
+      marker.textContent = String.fromCharCode(65 + index);
+      button.append(marker, document.createTextNode(option));
       button.onclick = () => choose(index);
       return button;
     }));
+    if (answerState) showFeedback(item);
   }
 
   function choose(index) {
-    if (answered) return;
-    answered = true;
+    if (answerState) return;
     const result = session.answer(index);
-    const buttons = [...answers.querySelectorAll("button")];
-    for (const button of buttons) button.disabled = true;
-    buttons[result.correctAnswer]?.classList.add("correct");
-    if (!result.isCorrect) buttons[index]?.classList.add("wrong");
-    feedback.textContent = `${result.isCorrect ? translate("回答正确") : translate("这题再想想")} ${result.explanation}`;
-    feedback.classList.add(result.isCorrect ? "is-correct" : "is-wrong");
-    progress.textContent = `${translate("答对进度")} ${result.correct}/${result.required}`;
-    nextButton.hidden = false;
-    nextButton.textContent = result.completed ? translate("继续游戏") : translate("下一题");
+    answerState = { result, selectedIndex: index };
+    render();
+
+    const currentGeneration = generation;
+    transitionTimer = setTimeout(() => {
+      if (currentGeneration !== generation || !session) return;
+      transitionTimer = null;
+      if (result.completed) {
+        dialog.close();
+        session = null;
+        answerState = null;
+        onUnlocked();
+        return;
+      }
+      session.next();
+      answerState = null;
+      render();
+    }, transitionDelay);
   }
 
-  nextButton.onclick = () => {
-    if (!session || !answered) return;
-    if (session.progress().completed) {
-      dialog.close();
-      onUnlocked();
-      return;
-    }
-    session.next();
-    render();
-  };
   dialog.addEventListener("cancel", (event) => event.preventDefault());
 
   return {
     start(requiredCorrect) {
-      session = createQuizSession(requiredCorrect);
+      generation++;
+      clearTransition();
+      session = createSession(requiredCorrect);
+      answerState = null;
       render();
       if (!dialog.open) dialog.showModal();
     },
@@ -63,10 +83,7 @@ export function createQuizDialog(elements, translate, onUnlocked) {
       return dialog.open;
     },
     refreshLanguage() {
-      if (!session) return;
-      const state = session.progress();
-      progress.textContent = `${translate("答对进度")} ${state.correct}/${state.required}`;
-      if (answered) nextButton.textContent = state.completed ? translate("继续游戏") : translate("下一题");
+      if (session) render();
     }
   };
 }

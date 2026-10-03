@@ -278,20 +278,18 @@ h1 {
   object-fit: contain;
   transform: scaleX(-1);
 }
+.preview canvas {
+  z-index: 1;
+  pointer-events: none;
+}
 .camera-actions {
   display: flex;
   gap: 8px;
   margin-top: 14px;
 }
-.camera-actions button,
-.camera-actions select {
+.camera-actions button {
   padding: 8px 10px;
   font-size: 11px;
-}
-.camera-actions select {
-  min-width: 0;
-  flex: 1;
-  width: 100px;
 }
 #camera-status {
   font-size: 11px;
@@ -823,7 +821,7 @@ main {
 }
 .game-top .camera-mini .preview video,
 .game-top .camera-mini .preview canvas {
-  object-fit: cover;
+  object-fit: contain;
 }
 .game-top .camera-mini #camera-status {
   position: absolute;
@@ -1023,7 +1021,7 @@ html[lang=en] #gesture-guide small {
   display: none;
 }
 
-/* Animal selection and study-lock experience */
+/* Animal selection and manual-mode quiz experience */
 .game-top .brand-icon {
   display: inline-grid;
   place-items: center;
@@ -1036,18 +1034,15 @@ html[lang=en] #gesture-guide small {
 .game-top .scores {
   gap: clamp(12px, 2vw, 26px);
 }
-.game-top .lock-score b {
+.game-top .quiz-score b {
   min-width: 66px;
   color: #e8ffd8;
 }
-.game-top .lock-score.is-warning b {
+.game-top .quiz-score.is-warning b {
   color: #ffe07a;
-  animation: lock-pulse 1s ease-in-out infinite alternate;
+  animation: quiz-pulse 1s ease-in-out infinite alternate;
 }
-.game-top .lock-score.is-disabled {
-  opacity: .72;
-}
-@keyframes lock-pulse {
+@keyframes quiz-pulse {
   to { transform: scale(1.06); }
 }
 .preference-actions {
@@ -1084,6 +1079,20 @@ html[lang=en] #gesture-guide small {
   padding: clamp(20px, 3vw, 34px);
   overflow: auto;
 }
+.dialog-language {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  min-width: 44px;
+  padding: 7px 10px;
+  border-radius: 18px;
+  font-size: 11px;
+}
+.setup-dialog .setup-hero,
+.quiz-dialog .quiz-topline {
+  padding-right: 54px;
+}
 .setup-hero {
   display: flex;
   align-items: center;
@@ -1108,14 +1117,14 @@ html[lang=en] #gesture-guide small {
   letter-spacing: -.5px;
 }
 .setup-hero p,
-.kid-lock-heading p,
+.manual-mode-heading p,
 .quiz-intro {
   margin: 6px 0 0;
   color: #718071;
   line-height: 1.6;
 }
 .setup-dialog section > h2,
-.kid-lock-heading h2 {
+.manual-mode-heading h2 {
   margin: 0 0 12px;
   color: #344e40;
   font-size: 14px;
@@ -1172,23 +1181,23 @@ html[lang=en] #gesture-guide small {
   font-size: 9px;
   font-weight: 500;
 }
-.kid-lock-config {
+.manual-mode-config {
   margin-top: 24px;
   padding: 18px;
   border: 1px solid #dce4d4;
   border-radius: 16px;
   background: #f7f8ef;
 }
-.kid-lock-heading {
+.manual-mode-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 18px;
 }
-.kid-lock-heading h2 {
+.manual-mode-heading h2 {
   margin-bottom: 0;
 }
-.kid-lock-heading p {
+.manual-mode-heading p {
   font-size: 11px;
 }
 .switch {
@@ -1233,13 +1242,13 @@ html[lang=en] #gesture-guide small {
   outline: 3px solid #8baf73;
   outline-offset: 3px;
 }
-.kid-lock-fields {
+.manual-mode-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 15px;
 }
-.kid-lock-fields label {
+.manual-mode-fields label {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -1250,12 +1259,12 @@ html[lang=en] #gesture-guide small {
   color: #576b5a;
   font-size: 11px;
 }
-.kid-lock-fields select {
+.manual-mode-fields select {
   padding: 7px 30px 7px 10px;
   font-size: 11px;
 }
-.kid-lock-config.is-disabled .kid-lock-fields,
-.kid-lock-config.is-disabled .setup-note {
+.manual-mode-config.is-disabled .manual-mode-fields,
+.manual-mode-config.is-disabled .setup-note {
   opacity: .42;
 }
 .setup-note {
@@ -1357,17 +1366,12 @@ html[lang=en] #gesture-guide small {
   color: #7b493d;
   background: #fbede7;
 }
-.quiz-next {
-  display: block;
-  margin-left: auto;
-}
-
 @media (max-width: 800px) {
   .animal-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .game-top .scores { gap: 8px; }
   .game-top .scores b { font-size: 14px; }
   .game-top .score-main b { font-size: 18px; }
-  .game-top .lock-score b { min-width: 52px; }
+  .game-top .quiz-score b { min-width: 52px; }
 }
 @media (max-width: 600px) {
   .game-top .brand-icon { width: 24px; height: 24px; font-size: 19px; }
@@ -1375,9 +1379,9 @@ html[lang=en] #gesture-guide small {
   .game-top .scores { margin-left: 0; }
   .game-top .scores b { font-size: 12px; }
   .game-top .score-main b { font-size: 15px; }
-  .game-top .lock-score b { min-width: 46px; }
-  .kid-lock-heading { align-items: flex-start; }
-  .kid-lock-fields { grid-template-columns: 1fr; }
+  .game-top .quiz-score b { min-width: 46px; }
+  .manual-mode-heading { align-items: flex-start; }
+  .manual-mode-fields { grid-template-columns: 1fr; }
   .setup-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 17px; }
   .setup-hero { align-items: flex-start; gap: 11px; margin-bottom: 18px; }
   .setup-hero > span { width: 44px; height: 44px; border-radius: 13px; font-size: 23px; }

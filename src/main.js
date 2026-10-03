@@ -1,6 +1,6 @@
 import { scoreShare } from "./share-score.js";
 import { createShareCard, canShareImage } from "./share-card.js";
-import { t, applyLanguage, toggleLanguage } from "./i18n.js";
+import { t, applyLanguage, toggleLanguage, getLanguage } from "./i18n.js";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { createDinoGame } from "./dino-game.js";
 import { createRunnerScene } from "./runner-scene.js";
@@ -12,25 +12,29 @@ import { motionHint, prepareMotion } from "./motion-startup.js";
 import { menuJump } from "./menu-jump.js";
 import { createGameAudio } from "./game-audio.js";
 import { ANIMALS, animalById } from "./animal-catalog.js";
-import { loadGameSettings, saveGameSettings } from "./game-settings.js";
-import { KidLockTimer } from "./kid-lock.js";
+import { hasSavedGameSettings, loadGameSettings, saveGameSettings } from "./game-settings.js";
+import { ManualQuizTimer } from "./manual-quiz-timer.js";
 import { createQuizDialog } from "./quiz-dialog.js";
+import { localizeQuestion } from "./question-bank.js";
+import { drawPoseOverlay } from "./pose-overlay.js";
 import "./style.css";
 const $ = (id) => document.getElementById(id);
 const video = $("video"), game = createDinoGame(), detector = new LearnedJumpDetector();
+let startupComplete = hasSavedGameSettings();
 let gameSettings = loadGameSettings();
 let draftSettings = structuredClone(gameSettings);
-const kidLock = new KidLockTimer(gameSettings.kidLock);
+const quizTimer = new ManualQuizTimer(gameSettings.manualMode);
 let stream = null, model = null, modelPromise = null, generation = 0, view = null;
 let previousVideoTime = -1, lastInference = 0, lastFrame = 0, lastTracked = -Infinity;
+let inferenceFrame = null, inferenceFrameType = "";
 let cameraPhase = "off";
-let mode = "camera", tracking = { tracked: false, ready: false }, best = 0;
+let mode = gameSettings.manualMode.enabled ? "manual" : "camera";
+let tracking = { tracked: false, ready: false }, best = 0;
 let resumeAt = 0, wasActive = false;
 const audio = createGameAudio();
-let readyAnimalView = null, sharing = false, shareStatusTimer;
-let startupComplete = false;
+let readyAnimalView = null, sharing = false;
 let gameOverAt = -Infinity;
-let heardJumps = 0, heardClears = 0, heardDeath = false, heardScore = 0, scoreFlashUntil = 0;
+let heardJumps = 0, heardDeath = false, heardScore = 0, scoreFlashUntil = 0;
 window.addEventListener("pointerdown", (event) => {
   if (!event.target.closest("#sound-button")) audio.unlock();
 });
@@ -57,13 +61,16 @@ const quiz = createQuizDialog({
   progress: $("quiz-progress"),
   prompt: $("quiz-prompt"),
   answers: $("quiz-answers"),
-  feedback: $("quiz-feedback"),
-  nextButton: $("quiz-next")
-}, t, () => {
-  kidLock.unlock();
-  lastFrame = 0;
-  audio.clear();
-  $("game-canvas").focus({ preventScroll: true });
+  feedback: $("quiz-feedback")
+}, {
+  translate: t,
+  localizeQuestion: (item) => localizeQuestion(item, getLanguage()),
+  onUnlocked: () => {
+    quizTimer.unlock();
+    lastFrame = 0;
+    audio.clear();
+    $("game-canvas").focus({ preventScroll: true });
+  }
 });
 
 function applyAnimal(id) {
@@ -110,41 +117,52 @@ function refreshAnimalPickerLanguage() {
   const english = document.documentElement.lang === "en";
   for (const button of $("animal-picker").querySelectorAll("button")) {
     const animal = animalById(button.dataset.animalId);
-    button.querySelector(".animal-name").textContent = english ? `${animal.englishName} · ${animal.name}` : `${animal.name} · ${animal.englishName}`;
+    button.querySelector(".animal-name").textContent = english ? animal.englishName : animal.name;
     button.querySelector(".animal-tagline").textContent = english ? animal.englishTagline : animal.tagline;
   }
 }
 
-function updateKidLockControls() {
-  const enabled = $("kid-lock-enabled").checked;
-  $("lock-duration").disabled = !enabled;
-  $("unlock-count").disabled = !enabled;
-  $("kid-lock-enabled").closest(".kid-lock-config").classList.toggle("is-disabled", !enabled);
+function updateManualModeControls() {
+  const enabled = $("manual-mode-enabled").checked;
+  $("quiz-duration").disabled = !enabled;
+  $("quiz-correct-count").disabled = !enabled;
+  $("manual-mode-enabled").closest(".manual-mode-config").classList.toggle("is-disabled", !enabled);
 }
 
 function fillSetup(settings) {
   draftSettings = structuredClone(settings);
-  $("kid-lock-enabled").checked = draftSettings.kidLock.enabled;
-  $("lock-duration").value = String(draftSettings.kidLock.durationMinutes);
-  $("unlock-count").value = String(draftSettings.kidLock.questionsToUnlock);
-  updateKidLockControls();
+  $("manual-mode-enabled").checked = draftSettings.manualMode.enabled;
+  $("quiz-duration").value = String(draftSettings.manualMode.durationMinutes);
+  $("quiz-correct-count").value = String(draftSettings.manualMode.questionsToUnlock);
+  updateManualModeControls();
   selectDraftAnimal(draftSettings.animalId);
 }
 
 function refreshSettingsSummary() {
   const animal = animalById(gameSettings.animalId);
-  const lock = gameSettings.kidLock.enabled
-    ? `${gameSettings.kidLock.durationMinutes} ${t("分钟")} · ${t("答对")} ${gameSettings.kidLock.questionsToUnlock} ${t("题")}`
-    : t("已关闭");
-  $("settings-summary").textContent = `${animal.emoji} ${animal.name} · ${t("小朋友锁")} ${lock}`;
+  const animalName = getLanguage() === "en" ? animal.englishName : animal.name;
+  const manual = gameSettings.manualMode;
+  const quizRule = getLanguage() === "en"
+    ? `${manual.durationMinutes} min · ${manual.questionsToUnlock} correct`
+    : `${manual.durationMinutes} 分钟 · 答对 ${manual.questionsToUnlock} 题`;
+  const control = manual.enabled ? `${t("手动模式")} · ${quizRule}` : `${t("体感模式")} · ${t("前置摄像头")}`;
+  $("settings-summary").textContent = `${animal.emoji} ${animalName} · ${control}`;
 }
 
-function refreshKidLockHud() {
-  const score = $("kid-lock-time").closest(".lock-score");
-  $("kid-lock-time").textContent = kidLock.formattedRemaining();
-  $("lock-label").textContent = t(kidLock.locked ? "答题解锁" : "学习时间");
-  score.classList.toggle("is-disabled", !kidLock.settings.enabled);
-  score.classList.toggle("is-warning", kidLock.settings.enabled && kidLock.remainingSeconds <= 60);
+function refreshControlUi() {
+  const manual = gameSettings.manualMode.enabled;
+  for (const element of document.querySelectorAll(".motion-only")) element.hidden = manual;
+  $("control-instructions").textContent = t(manual
+    ? "手动模式：按空格、↑ 或点按游戏画面开始、跳跃或重来；到时必须答题。"
+    : "体感模式：面对前置摄像头，原地跳一下即可开始、跳跃或重来；无需答题。");
+}
+
+function refreshQuizHud() {
+  const score = $("manual-quiz-time").closest(".quiz-score");
+  score.hidden = !gameSettings.manualMode.enabled;
+  $("manual-quiz-time").textContent = quizTimer.formattedRemaining();
+  $("quiz-timer-label").textContent = t("答题倒计时");
+  score.classList.toggle("is-warning", quizTimer.remainingSeconds <= 60);
 }
 
 function openSetup() {
@@ -160,8 +178,9 @@ function interactionBlocked() {
 createAnimalPicker();
 fillSetup(gameSettings);
 refreshSettingsSummary();
-refreshKidLockHud();
-$("kid-lock-enabled").onchange = updateKidLockControls;
+refreshControlUi();
+refreshQuizHud();
+$("manual-mode-enabled").onchange = updateManualModeControls;
 $("open-setup").onclick = openSetup;
 $("setup-cancel").onclick = () => {
   applyAnimal(gameSettings.animalId);
@@ -172,33 +191,41 @@ setupDialog.addEventListener("cancel", (event) => {
   else applyAnimal(gameSettings.animalId);
 });
 $("setup-start").onclick = () => {
-  const firstStart = !startupComplete;
   gameSettings = saveGameSettings({
     animalId: draftSettings.animalId,
-    kidLock: {
-      enabled: $("kid-lock-enabled").checked,
-      durationMinutes: Number($("lock-duration").value),
-      questionsToUnlock: Number($("unlock-count").value)
+    manualMode: {
+      enabled: $("manual-mode-enabled").checked,
+      durationMinutes: Number($("quiz-duration").value),
+      questionsToUnlock: Number($("quiz-correct-count").value)
     }
   });
-  kidLock.configure(gameSettings.kidLock);
+  quizTimer.configure(gameSettings.manualMode);
   applyAnimal(gameSettings.animalId);
   startupComplete = true;
   setupDialog.close();
   refreshSettingsSummary();
-  refreshKidLockHud();
+  refreshControlUi();
+  refreshQuizHud();
   lastFrame = 0;
-  if (firstStart && !stream) startCamera();
+  if (gameSettings.manualMode.enabled) {
+    mode = "manual";
+    stopCamera();
+  } else {
+    mode = "camera";
+    if (!stream) startCamera();
+  }
 };
-$("language-button").onclick = () => {
+function switchLanguage() {
   toggleLanguage();
   $("camera-status").textContent = cameraStatus();
   updateSensitivity();
   refreshAnimalPickerLanguage();
   refreshSettingsSummary();
-  refreshKidLockHud();
+  refreshControlUi();
+  refreshQuizHud();
   quiz.refreshLanguage();
-};
+}
+for (const button of document.querySelectorAll("[data-language-switch]")) button.onclick = switchLanguage;
 async function loadModel() {
   if (!modelPromise) modelPromise = (async () => {
     const root = import.meta.env.BASE_URL;
@@ -223,16 +250,54 @@ async function loadModel() {
   detector.setModel(loaded.jump);
   model = loaded.pose;
 }
-async function listCameras(selected = "") {
-  const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
-  $("device-select").replaceChildren(...cameras.map((d, i) => {
-    const option = document.createElement("option");
-    option.value = d.deviceId;
-    option.textContent = d.label || `${t("\u6444\u50CF\u5934")} ${i + 1}`;
-    return option;
-  }));
-  if (cameras.some((d) => d.deviceId === selected)) $("device-select").value = selected;
-  $("device-select").disabled = cameras.length < 2;
+const cameraConstraints = (facingMode) => ({
+  audio: false,
+  video: {
+    facingMode,
+    width: { ideal: 640 },
+    height: { ideal: 480 },
+    frameRate: { ideal: 30, max: 30 }
+  }
+});
+
+async function openFrontCamera() {
+  try {
+    return await navigator.mediaDevices.getUserMedia(cameraConstraints({ exact: "user" }));
+  } catch (error) {
+    if (!["OverconstrainedError", "NotFoundError"].includes(error.name)) throw error;
+    return navigator.mediaDevices.getUserMedia(cameraConstraints({ ideal: "user" }));
+  }
+}
+
+function stopInferenceLoop() {
+  if (inferenceFrame === null) return;
+  if (inferenceFrameType === "video") video.cancelVideoFrameCallback?.(inferenceFrame);
+  else cancelAnimationFrame(inferenceFrame);
+  inferenceFrame = null;
+  inferenceFrameType = "";
+}
+
+function startInferenceLoop(token) {
+  stopInferenceLoop();
+  const schedule = () => {
+    if (token !== generation || cameraPhase !== "tracking") return;
+    if (typeof video.requestVideoFrameCallback === "function") {
+      inferenceFrameType = "video";
+      inferenceFrame = video.requestVideoFrameCallback(() => {
+        inferenceFrame = null;
+        infer(performance.now());
+        schedule();
+      });
+    } else {
+      inferenceFrameType = "animation";
+      inferenceFrame = requestAnimationFrame((now) => {
+        inferenceFrame = null;
+        infer(now);
+        schedule();
+      });
+    }
+  };
+  schedule();
 }
 function resetTracking() {
   detector.reset();
@@ -243,6 +308,7 @@ function resetTracking() {
 }
 function stopCamera() {
   generation++;
+  stopInferenceLoop();
   cameraPhase = "off";
   stream?.getTracks().forEach((t2) => t2.stop());
   stream = null;
@@ -262,7 +328,7 @@ function errorMessage(error) {
   if (error.name === "NotReadableError") return t("\u6444\u50CF\u5934\u6B63\u88AB\u5176\u4ED6\u5E94\u7528\u5360\u7528\uFF0C\u8BF7\u5173\u95ED\u5360\u7528\u540E\u91CD\u8BD5\u3002");
   return `${t("\u6444\u50CF\u5934\u6216\u6A21\u578B\u542F\u52A8\u5931\u8D25")}: ${error.message}`;
 }
-async function startCamera(deviceId = "") {
+async function startCamera() {
   stopCamera();
   mode = "camera";
   const token = generation;
@@ -272,12 +338,7 @@ async function startCamera(deviceId = "") {
   status("\u6B63\u5728\u8FDE\u63A5\u6444\u50CF\u5934\u2026");
   try {
     if (!isSecureContext || !navigator.mediaDevices?.getUserMedia) throw new Error(t("\u8BF7\u7528 localhost \u6216 HTTPS \u6253\u5F00\u3002"));
-    const next = await navigator.mediaDevices.getUserMedia({ audio: false, video: {
-      ...deviceId ? { deviceId: { exact: deviceId } } : { facingMode: "user" },
-      width: { ideal: 640 },
-      height: { ideal: 480 },
-      frameRate: { ideal: 30, max: 30 }
-    } });
+    const next = await openFrontCamera();
     if (token !== generation) {
       next.getTracks().forEach((t2) => t2.stop());
       return;
@@ -287,7 +348,7 @@ async function startCamera(deviceId = "") {
     next.getVideoTracks()[0].addEventListener("ended", () => {
       if (stream === next) {
         stopCamera();
-        status("\u6444\u50CF\u5934\u5DF2\u65AD\u5F00\uFF0C\u53EF\u7528\u7A7A\u683C\u7EE7\u7EED\u3002");
+        status("摄像头已断开，请重新开启前置摄像头。");
       }
     });
     video.hidden = false;
@@ -304,8 +365,8 @@ async function startCamera(deviceId = "") {
         audio.unlock();
         $("live-dot").classList.add("active");
         status("\u8BF7\u8BA9\u5934\u90E8\u6216\u80A9\u8180\u8FDB\u5165\u955C\u5934");
-      },
-      list: () => listCameras(next.getVideoTracks()[0].getSettings().deviceId)
+        startInferenceLoop(token);
+      }
     });
   } catch (error) {
     if (token !== generation) return;
@@ -314,7 +375,7 @@ async function startCamera(deviceId = "") {
   }
 }
 function infer(now) {
-  if (cameraPhase !== "tracking" || !stream || !model || video.readyState < 2 || now - lastInference < 16 || video.currentTime === previousVideoTime || document.hidden) return;
+  if (mode !== "camera" || cameraPhase !== "tracking" || !stream || !model || video.readyState < 2 || now - lastInference < 16 || video.currentTime === previousVideoTime || document.hidden) return;
   lastInference = now;
   previousVideoTime = video.currentTime;
   try {
@@ -330,19 +391,7 @@ function infer(now) {
       $("game-card").classList.add("ready-unlocked");
       startGame("camera", true);
     }
-    const canvas = $("pose-overlay"), ctx = canvas.getContext("2d");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.hidden = false;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#a5e4a0";
-    for (const index of [0, 2, 5, 11, 12, 13, 14, 15, 16, 23, 24]) {
-      const p = points?.[index];
-      if (!p || p.visibility < 0.55) continue;
-      ctx.beginPath();
-      ctx.arc(p.x * canvas.width, p.y * canvas.height, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    drawPoseOverlay($("pose-overlay"), video, points);
     $("tracking-status").textContent = !tracking.tracked ? t("\u672A\u8BC6\u522B") : !tracking.ready ? t("\u6821\u51C6\u4E2D\u2026") : `${t("\u5DF2\u8BC6\u522B")} ${t(tracking.source)}`;
     if (!interactionBlocked() && !started && game.state.phase === "playing" && tracking.jump && wasActive && now >= resumeAt) game.jump();
   } catch (error) {
@@ -355,14 +404,14 @@ function startGame(nextMode, keepTracking = false) {
     openSetup();
     return;
   }
-  if (kidLock.locked) {
-    quiz.start(gameSettings.kidLock.questionsToUnlock);
+  if (nextMode === "manual" && quizTimer.locked) {
+    quiz.start(gameSettings.manualMode.questionsToUnlock);
     return;
   }
   mode = nextMode;
   game.start();
   audio.resetStars();
-  heardJumps = heardClears = heardScore = 0;
+  heardJumps = heardScore = 0;
   heardDeath = false;
   scoreFlashUntil = 0;
   $("game-card").classList.remove("crashed");
@@ -376,20 +425,24 @@ function startGame(nextMode, keepTracking = false) {
   }
 }
 $("start-button").onclick = () => {
+  if (gameSettings.manualMode.enabled) return;
   audio.unlock();
   startCamera();
 };
 $("camera-enable").onclick = () => {
-  if (!$("start-button").disabled) {
+  if (!gameSettings.manualMode.enabled && !$("start-button").disabled) {
     audio.unlock();
     startCamera();
   }
 };
 $("stop-button").onclick = stopCamera;
-$("device-select").onchange = (event) => startCamera(event.target.value);
 $("play-button").onclick = () => {
-  startGame("camera");
-  if (!stream) startCamera();
+  if (gameSettings.manualMode.enabled) {
+    startGame("manual");
+  } else {
+    startGame("camera");
+    if (!stream) startCamera();
+  }
 };
 $("recalibrate").onclick = resetTracking;
 let shareImageUrl = null, shareFile = null, sharePayload = null;
@@ -397,7 +450,6 @@ $("share-button").onclick = async () => {
   if (sharing || !view || setupDialog.open || quiz.isOpen()) return;
   sharing = true;
   $("share-button").disabled = true;
-  clearTimeout(shareStatusTimer);
   $("share-status").textContent = t("\u6B63\u5728\u751F\u6210\u6210\u7EE9\u5361\u2026");
   try {
     const score = Math.max(best, game.state.score);
@@ -454,18 +506,19 @@ $("sensitivity").oninput = () => {
   resetTracking();
 };
 window.addEventListener("keydown", (event) => {
-  if (!view || !["Space", "ArrowUp"].includes(event.code) || event.target.isContentEditable || /INPUT|SELECT|BUTTON|TEXTAREA|SUMMARY/.test(event.target.tagName)) return;
+  if (!gameSettings.manualMode.enabled || !view || !["Space", "ArrowUp"].includes(event.code) || event.target.isContentEditable || /INPUT|SELECT|BUTTON|TEXTAREA|SUMMARY/.test(event.target.tagName)) return;
   event.preventDefault();
   if (event.repeat || document.hidden || interactionBlocked()) return;
   if (game.state.phase !== "playing") {
-    startGame("keyboard");
+    startGame("manual");
     return;
   }
-  if (stream && (!wasActive || performance.now() < resumeAt)) return;
   game.jump();
 });
 $("game-canvas").addEventListener("pointerdown", () => {
-  if (!interactionBlocked() && mode === "keyboard" && (!stream || wasActive && performance.now() >= resumeAt)) game.jump();
+  if (!gameSettings.manualMode.enabled || interactionBlocked()) return;
+  if (game.state.phase !== "playing") startGame("manual");
+  else game.jump();
 });
 window.addEventListener("pagehide", () => {
   stopCamera();
@@ -474,8 +527,6 @@ document.addEventListener("visibilitychange", () => {
   lastFrame = 0;
   resetTracking();
 });
-navigator.mediaDevices?.addEventListener?.("devicechange", () => listCameras($("device-select").value).catch(() => {
-}));
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = lastFrame ? (now - lastFrame) / 1e3 : 0;
@@ -485,11 +536,12 @@ function frame(now) {
   soundButton.title = audio.muted ? t("\u5F00\u542F\u97F3\u6548") : audio.ready ? t("\u9759\u97F3") : t("\u70B9\u51FB\u5F00\u542F\u97F3\u6548");
   soundButton.setAttribute("aria-label", soundButton.title);
   soundButton.setAttribute("aria-pressed", String(audio.muted));
-  infer(now);
   const gestureMenu = !interactionBlocked() && Boolean(game.state.phase === "idle" || game.state.phase === "over" && now - gameOverAt >= 800);
   const restarting = game.state.phase === "over";
   $("gesture-guide").hidden = !gestureMenu;
-  const guideText = motionHint(cameraPhase, tracking, performance.now() - lastTracked < 200, restarting);
+  const guideText = gameSettings.manualMode.enabled
+    ? restarting ? "按空格或点按画面重新开始" : "按空格或点按画面开始"
+    : motionHint(cameraPhase, tracking, performance.now() - lastTracked < 200, restarting);
   const caption = $("gesture-guide").querySelector("small");
   caption.dataset.i18n = guideText;
   caption.textContent = t(guideText);
@@ -497,20 +549,20 @@ function frame(now) {
     element.dataset.i18nLabel = guideText;
     element.setAttribute("aria-label", t(guideText));
   }
-  readyAnimalView?.render(now, gestureMenu && !document.hidden, cameraPhase === "off" || cameraPhase === "tracking" && tracking.ready && tracking.tracked);
+  readyAnimalView?.render(now, gestureMenu && !document.hidden, gameSettings.manualMode.enabled || cameraPhase === "tracking" && tracking.ready && tracking.tracked);
   $("gesture-fill").style.height = "0%";
   $("gesture-guide").classList.remove("filling");
   const ready = !document.hidden && personReady(mode, Boolean(stream), tracking, now, lastTracked);
   if (!ready) wasActive = false;
   if (ready && !wasActive) {
-    resumeAt = now + (stream && game.state.phase === "playing" ? 600 : 0);
+    resumeAt = now + (mode === "camera" && stream && game.state.phase === "playing" ? 600 : 0);
     wasActive = true;
   }
   let active = ready && now >= resumeAt && !interactionBlocked();
-  if (kidLock.tick(dt, game.state.phase === "playing" && active)) {
+  if (quizTimer.tick(dt, mode === "manual" && game.state.phase === "playing" && active)) {
     active = false;
     wasActive = false;
-    quiz.start(gameSettings.kidLock.questionsToUnlock);
+    quiz.start(gameSettings.manualMode.questionsToUnlock);
   }
   game.step(dt, active);
   if (game.state.jumps > heardJumps) {
@@ -520,7 +572,6 @@ function frame(now) {
   if (game.state.score > heardScore) {
     audio.stars(game.state.score - heardScore);
     heardScore = game.state.score;
-    heardClears = game.state.cleared;
     scoreFlashUntil = now + 700;
   }
   if (game.state.phase === "over" && !heardDeath) {
@@ -541,10 +592,10 @@ function frame(now) {
   $("speed").textContent = `${(game.state.speed / 280).toFixed(2)}\xD7`;
   $("score").textContent = String(game.state.score).padStart(5, "0");
   $("best").textContent = String(best).padStart(5, "0");
-  refreshKidLockHud();
+  refreshQuizHud();
   $("play-button").textContent = game.state.phase === "idle" ? t("\u5F00\u59CB") : t("\u91CD\u6765");
   const message = !view ? t("\u52A0\u8F7D\u4E2D\u2026") : game.state.phase === "idle" ? "" : game.state.phase === "over" ? "" : !ready ? t(cameraPhase === "loading" ? "\u6B63\u5728\u51C6\u5907\u52A8\u4F5C\u8BC6\u522B\u2026" : tracking.tracked && !tracking.ready ? "\u8BF7\u7AD9\u7A33\u7247\u523B\uFF0C\u6B63\u5728\u6821\u51C6\u2026" : "\u68C0\u6D4B\u4E0D\u5230\u4EBA\u7269") : sharing ? "" : !active ? `${Math.ceil((resumeAt - now) / 1e3)}` : "";
-  const cameraAction = Boolean(view && !stream && game.state.phase !== "playing");
+  const cameraAction = Boolean(!gameSettings.manualMode.enabled && view && !stream);
   $("camera-enable").hidden = !cameraAction;
   $("camera-enable").disabled = $("start-button").disabled;
   $("camera-enable").textContent = $("start-button").disabled ? t("\u6B63\u5728\u8FDE\u63A5\u2026") : t("\u5F00\u542F\u6444\u50CF\u5934");
@@ -566,4 +617,9 @@ createRunnerScene($("game-canvas")).then((scene) => {
 }).catch((error) => {
   $("game-message").textContent = `${t("3D \u52A8\u7269\u52A0\u8F7D\u5931\u8D25")}: ${error.message}. ${t("\u8BF7\u5237\u65B0\u91CD\u8BD5\u3002")}`;
 });
-openSetup();
+if (startupComplete) {
+  if (gameSettings.manualMode.enabled) mode = "manual";
+  else startCamera();
+} else {
+  openSetup();
+}

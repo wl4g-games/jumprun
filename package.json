@@ -1,5 +1,5 @@
 {
-  "name": "bunny-run",
+  "name": "jumprun",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -17,9 +17,10 @@
     "vite": "7.3.6"
   },
   "license": "MIT",
-  "author": "guigulaoshi",
+  "author": "guigulaoshi and wl4g-games contributors",
   "repository": {
     "type": "git",
-    "url": "https://github.com/guigulaoshi/bunny-run.git"
-  }
+    "url": "https://github.com/wl4g-games/jumprun.git"
+  },
+  "homepage": "https://wl4g-games.github.io/jumprun/"
 }

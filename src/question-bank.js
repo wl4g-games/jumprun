@@ -1,3 +1,5 @@
+import { ENGLISH_QUESTION_BANK } from "./question-bank.en.js";
+
 const question = (id, subject, prompt, options, answer, explanation) => Object.freeze({
   id,
   subject,
@@ -115,6 +117,12 @@ export const QUESTION_BANK = Object.freeze([
 ]);
 
 export const QUESTION_SUBJECTS = Object.freeze(["语文", "数学", "英语", "地理", "物理"]);
+const ENGLISH_QUESTIONS_BY_ID = new Map(ENGLISH_QUESTION_BANK.map((item) => [item.id, item]));
+
+export function localizeQuestion(item, language) {
+  if (language !== "en") return item;
+  return ENGLISH_QUESTIONS_BY_ID.get(item.id) || item;
+}
 
 export function shuffledQuestions(random = Math.random) {
   const items = [...QUESTION_BANK];
