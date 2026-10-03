@@ -1,0 +1,199 @@
+# Production workflow. A merge to main emits a push event, so using push as
+# the single trigger avoids duplicate releases from pull_request:closed.
+#
+# Job DAG:
+#   build (version + test + dist + artifacts)
+#      -> release (versioned dist.tar.gz GitHub Release)
+#      -> deploy (the same dist deployed to GitHub Pages)
+
+name: Release and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      archive: ${{ steps.version.outputs.archive }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Determine release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CURRENT_TAG="$(
+            git tag --points-at HEAD --list 'v*' |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+              sort -V |
+              tail -n 1 || true
+          )"
+
+          if [[ -n "${CURRENT_TAG}" ]]; then
+            NEW_TAG="${CURRENT_TAG}"
+            BUMP_LEVEL="reuse"
+          else
+            LATEST_TAG="$(
+              git tag --list 'v*' |
+                grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+                sort -V |
+                tail -n 1 || true
+            )"
+
+            if [[ -z "${LATEST_TAG}" ]]; then
+              PACKAGE_VERSION="$(
+                node -e "const fs=require('fs'); const value=JSON.parse(fs.readFileSync('package.json','utf8')).version; process.stdout.write(value)"
+              )"
+              if [[ ! "${PACKAGE_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "::error title=Invalid package version::package.json must contain a stable semantic version."
+                exit 1
+              fi
+              NEW_TAG="v${PACKAGE_VERSION}"
+              BUMP_LEVEL="initial"
+            else
+              VERSION="${LATEST_TAG#v}"
+              IFS='.' read -r MAJOR MINOR PATCH <<< "${VERSION}"
+              CHANGES="$(git log --format=%B "${LATEST_TAG}..HEAD")"
+
+              if printf '%s\n' "${CHANGES}" |
+                grep -qiE '(^[[:alnum:]_-]+(\([^)]*\))?!:|BREAKING[[:space:]-]CHANGE:)'; then
+                BUMP_LEVEL="major"
+              elif printf '%s\n' "${CHANGES}" | grep -qiE '^refactor(\([^)]*\))?:'; then
+                BUMP_LEVEL="major"
+              elif printf '%s\n' "${CHANGES}" | grep -qiE '^feat(\([^)]*\))?:'; then
+                BUMP_LEVEL="minor"
+              else
+                BUMP_LEVEL="patch"
+              fi
+
+              case "${BUMP_LEVEL}" in
+                major)
+                  MAJOR=$((MAJOR + 1))
+                  MINOR=0
+                  PATCH=0
+                  ;;
+                minor)
+                  MINOR=$((MINOR + 1))
+                  PATCH=0
+                  ;;
+                patch)
+                  PATCH=$((PATCH + 1))
+                  ;;
+              esac
+              NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+            fi
+          fi
+
+          ARCHIVE_NAME="${GITHUB_REPOSITORY#*/}-${NEW_TAG}-dist.tar.gz"
+          printf 'tag=%s\n' "${NEW_TAG}" >> "${GITHUB_OUTPUT}"
+          printf 'archive=%s\n' "${ARCHIVE_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "Release ${NEW_TAG} (${BUMP_LEVEL})"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build for GitHub Pages
+        env:
+          PAGES_BASE: /${{ github.event.repository.name }}/
+        run: npm run build -- --base="${PAGES_BASE}"
+
+      - name: Package dist
+        env:
+          ARCHIVE_NAME: ${{ steps.version.outputs.archive }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner -czf "${ARCHIVE_NAME}" dist
+          tar -tzf "${ARCHIVE_NAME}" >/dev/null
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-dist
+          path: ${{ steps.version.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./dist
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download release bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: release-dist
+          path: release
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.build.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.build.outputs.tag }}
+          generate_release_notes: true
+          make_latest: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: release/${{ needs.build.outputs.archive }}
+          token: ${{ github.token }}
+
+  deploy:
+    name: Deploy GitHub Pages
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

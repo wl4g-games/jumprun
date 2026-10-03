@@ -7,7 +7,8 @@
 
 <p>
   <a href="https://wl4g-games.github.io/jumprun/"><img src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20NOW-%E7%AB%8B%E5%8D%B3%E5%BC%80%E7%8E%A9-568445?style=for-the-badge" alt="Play Animal Jump Run · 立即开玩" height="42"></a>
-  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/pages.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/pages.yml/badge.svg" alt="GitHub Pages deployment status" height="28"></a>
+  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/ci.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/ci.yml/badge.svg" alt="Pull request CI status" height="28"></a>
+  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/release.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/release.yml/badge.svg" alt="Release and deployment status" height="28"></a>
 </p>
 
 Play in your browser · 打开即玩 · No install · 无需安装<br>
@@ -103,15 +104,19 @@ npm run build
 npm run preview
 ```
 
-## GitHub Pages deployment · 自动部署
+## CI, release and deployment · 持续集成与自动发布
 
-[GitHub Pages workflow](.github/workflows/pages.yml) 会在代码推送到 `main` 时自动执行以下流程：
+[Pull Request CI](.github/workflows/ci.yml) 会在 PR 创建或更新时安装依赖、运行全部测试，并验证生产构建。代码进入 `main` 后，[release workflow](.github/workflows/release.yml) 会自动执行：
 
 ```text
-npm ci → npm test → Vite build → GitHub Pages deploy
+版本计算 → npm ci → npm test → Vite build
+        → jumprun-vX.Y.Z-dist.tar.gz → GitHub Release
+        → GitHub Pages deploy
 ```
 
-仓库首次启用 Pages 时，请在 **Settings → Pages → Build and deployment → Source** 中选择 **GitHub Actions**。之后每次推送到 `main` 都会自动更新：<https://wl4g-games.github.io/jumprun/>
+首次发布使用 `package.json` 中的稳定版本；后续根据提交类型递增语义版本，并在重复运行同一提交时复用已有标签。完整规则见 [CI/CD architecture](.github/workflows/README.md)。
+
+仓库首次启用 Pages 时，请在 **Settings → Pages → Build and deployment → Source** 中选择 **GitHub Actions**。之后代码每次进入 `main`（合并或直接推送）都会创建 GitHub Release，并自动更新：<https://wl4g-games.github.io/jumprun/>
 
 ## License and credits · 许可与致谢
 
