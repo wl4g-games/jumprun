@@ -2,3 +2,5 @@ Bunny Run code: MIT, copyright 2026 guigulaoshi.
 Original game artwork: CC BY 4.0; see ASSET-LICENSE.
 Three.js and its loaders: MIT; see three-LICENSE.
 MediaPipe Tasks Vision and pose landmarker: Apache 2.0; see mediapipe-LICENSE.
+Animal call recordings retain their own public-domain or Creative Commons terms; see public/audio/ATTRIBUTION.md.
+Realistic runner source models are CC0 1.0; see public/models/animals/README.md.

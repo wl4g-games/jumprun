@@ -7,12 +7,13 @@ import { createCarrot } from "./carrot.js";
 import { createDesert } from "./desert-scene.js";
 import { DINO } from "./dino-game.js";
 import { createRubberBody } from "./rubber-body.js";
-import { createAnimalModel, disposeObject3D } from "./animal-model.js";
+import { disposeAnimalModel, loadAnimalModel } from "./animal-model-loader.js";
 import { DEFAULT_ANIMAL_ID } from "./animal-catalog.js";
 import { createObstacleModel } from "./obstacle-model.js";
-export async function createRunnerScene(canvas) {
+import { animateAnimalGait } from "./animal-gait.js";
+export async function createRunnerScene(canvas, initialAnimalId = DEFAULT_ANIMAL_ID) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1;
@@ -30,7 +31,7 @@ export async function createRunnerScene(canvas) {
   const light = new THREE.DirectionalLight(16773590, 2.8);
   light.position.set(SUN.x, SUN.y, SUN.z);
   light.castShadow = true;
-  light.shadow.mapSize.set(2048, 2048);
+  light.shadow.mapSize.set(1024, 1024);
   light.shadow.radius = 4;
   light.shadow.normalBias = 0.025;
   const fill = new THREE.DirectionalLight(14086143, 0.65);
@@ -39,23 +40,32 @@ export async function createRunnerScene(canvas) {
   Object.assign(light.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8 });
   scene.add(light);
   const desert = await createDesert(scene);
-  let animalRoot = null, model = null, head = null, parts = null;
+  let animalInstance = null, animalRoot = null, model = null, head = null, rig = null;
   let currentAnimalId = DEFAULT_ANIMAL_ID;
-  function setAnimal(id) {
-    const next = createAnimalModel(id);
-    if (animalRoot) {
-      scene.remove(animalRoot);
-      disposeObject3D(animalRoot);
+  let animalRequestGeneration = 0;
+  async function setAnimal(id) {
+    const request = ++animalRequestGeneration;
+    if (animalInstance?.animal.id === id) return animalInstance.animal;
+    const next = await loadAnimalModel(id, { quality: "balanced" });
+    if (request !== animalRequestGeneration) {
+      disposeAnimalModel(next);
+      return null;
     }
+    const previous = animalInstance;
+    animalInstance = next;
     animalRoot = next.root;
     model = next.model;
-    parts = next.parts;
-    head = model.getObjectByName("head") || model;
+    rig = next.rig;
+    head = rig.headPivot || model.getObjectByName("head") || model;
     currentAnimalId = next.animal.id;
     scene.add(animalRoot);
+    if (previous) {
+      scene.remove(previous.root);
+      disposeAnimalModel(previous);
+    }
     return next.animal;
   }
-  setAnimal(DEFAULT_ANIMAL_ID);
+  await setAnimal(initialAnimalId);
   const obstacles = /* @__PURE__ */ new Map(), carrots = /* @__PURE__ */ new Map();
   function createObstacle(o) {
     const group = createObstacleModel(o);
@@ -113,7 +123,12 @@ export async function createRunnerScene(canvas) {
       fall = createRunnerFall(state.impact || { speed: state.speed, vy: state.vy, y: state.y, contactY: state.y + 55 }, lastBodyAngle, fallShape.vertical, fallShape.horizontal);
     }
     const bodyShape = fallShape || softness;
-    animalRoot.scale.set(bodyShape.horizontal, bodyShape.vertical, bodyShape.horizontal);
+    const squashFactor = rig.realistic ? 0.18 : 1;
+    animalRoot.scale.set(
+      1 + (bodyShape.horizontal - 1) * squashFactor,
+      1 + (bodyShape.vertical - 1) * squashFactor,
+      1 + (bodyShape.horizontal - 1) * squashFactor
+    );
     const zoom = (state.viewWidth || 1e3) / 1e3;
     camera.left = -5;
     camera.right = -5 + 10 * zoom;
@@ -126,21 +141,43 @@ export async function createRunnerScene(canvas) {
     }
     camera.updateProjectionMatrix();
     const running = state.phase === "playing" && state.y === 0;
-    const phase = state.distance / 160 * Math.PI * 2;
-    const stride = Math.sin(phase);
-    const bob = running ? 0.025 * (1 - Math.cos(phase * 2)) : 0;
-    animalRoot.position.set((DINO.x + DINO.width / 2) / 100 - 5, state.y / 100 + bob, 0);
+    const airborne = state.phase === "playing" && state.y > 0;
+    const gaitPose = animateAnimalGait(rig, {
+      distance: state.distance,
+      elapsed: state.elapsed,
+      running,
+      airborne,
+      verticalVelocity: state.vy,
+      dt: motionDt,
+      reducedMotion: reducedMotion.matches
+    });
+    animalRoot.position.set((DINO.x + DINO.width / 2) / 100 - 5, state.y / 100 + gaitPose.bob, 0);
     animalRoot.rotation.set(0, 0, 0);
-    animalRoot.rotation.z = (state.phase === "playing" ? -0.1 : 0) + softness.lean;
-    if (head) head.rotation.z = -softness.lean * 0.5;
+    animalRoot.rotation.x = gaitPose.roll;
+    animalRoot.rotation.z = (state.phase === "playing" ? -0.075 : 0) + gaitPose.pitch + softness.lean;
+    if (head && !rig.realistic) head.rotation.z -= softness.lean * 0.5;
     if (fall) {
       const pose = fall.step(dt);
       animalRoot.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), pose.angle);
       animalRoot.position.x += pose.x;
       animalRoot.position.y = pose.y;
     } else lastBodyAngle = -0.1 + softness.lean;
+    animalInstance.coat?.update({
+      elapsed: state.elapsed,
+      dt: motionDt,
+      speed: running ? state.speed : 0,
+      verticalVelocity: state.vy,
+      paused
+    });
     animalRoot.updateMatrixWorld(true);
-    headBox.setFromObject(head || model);
+    if (rig.scoreAnchor) {
+      const anchor = rig.scoreAnchor.getWorldPosition(new THREE.Vector3());
+      const radius = 0.12 * zoom;
+      headBox.min.set(anchor.x - radius, anchor.y - radius, anchor.z - radius);
+      headBox.max.set(anchor.x + radius, anchor.y + radius, anchor.z + radius);
+    } else {
+      headBox.setFromObject(head || model);
+    }
     while (stars.length < activeStars.length) addScoreStar();
     stars.forEach((mesh, i) => {
       const reward = activeStars[i];
@@ -158,9 +195,6 @@ export async function createRunnerScene(canvas) {
       mesh.scale.setScalar(reward.scale);
       mesh.material.opacity = age < 1 ? 1 : Math.max(0, (1.3 - age) / 0.3);
     });
-    for (const { pivot, phase: limbPhase } of parts.legs) pivot.rotation.z = running ? stride * limbPhase * 0.48 : state.y > 0 ? limbPhase * -0.3 : 0;
-    for (const { pivot, phase: limbPhase } of parts.arms) pivot.rotation.z = running ? -stride * limbPhase * 0.35 : state.y > 0 ? -0.5 : 0;
-    if (parts.tail) parts.tail.rotation.y = Math.sin(state.elapsed * 5) * 0.08;
     lastJumps = state.jumps;
     for (const o of state.obstacles) {
       if (!obstacles.has(o)) obstacles.set(o, createObstacle(o));
@@ -198,18 +232,19 @@ export async function createRunnerScene(canvas) {
     desert.update(state.distance, state.elapsed, state.y, state.speed, zoom, dt);
     finish.render(scene, camera);
   }, captureShareBackground() {
-    const hidden = [animalRoot, ...obstacles.values(), ...carrots.values(), ...stars].map((node) => [node, node.visible]);
+    const hidden = [...obstacles.values(), ...carrots.values(), ...stars].map((node) => [node, node.visible]);
     const size = renderer.getSize(new THREE.Vector2()), ratio = renderer.getPixelRatio();
     const center = (camera.left + camera.right) / 2, zoom = (camera.right - camera.left) / 10;
+    const animalTransform = {
+      visible: animalRoot.visible,
+      position: animalRoot.position.clone(),
+      quaternion: animalRoot.quaternion.clone(),
+      scale: animalRoot.scale.clone()
+    };
     const plants = [
       createObstacleModel({ species: "cactus", kind: "regular", width: 38, height: 88, variant: 1 }),
       createObstacleModel({ species: "qilin", kind: "tall", width: 88, height: 132, variant: 0.6 })
     ];
-    const cardAnimal = animalRoot.clone(true);
-    cardAnimal.visible = true;
-    cardAnimal.position.set(center, 0, 0.6);
-    cardAnimal.rotation.set(0, 0, 0);
-    cardAnimal.scale.setScalar(zoom * 1.65);
     const cardCamera = camera.clone();
     cardCamera.left = center - 5 * zoom;
     cardCamera.right = center + 5 * zoom;
@@ -218,7 +253,10 @@ export async function createRunnerScene(canvas) {
     cardCamera.updateProjectionMatrix();
     try {
       for (const [node] of hidden) node.visible = false;
-      scene.add(cardAnimal);
+      animalRoot.visible = true;
+      animalRoot.position.set(center, 0, 0.6);
+      animalRoot.rotation.set(0, 0, 0);
+      animalRoot.scale.setScalar(zoom * 1.65);
       plants.forEach((plant, i) => {
         plant.position.set(center + (i ? 2.7 : -2.7) * zoom, 0, 0.4);
         plant.scale.setScalar(zoom * 1.35);
@@ -234,7 +272,10 @@ export async function createRunnerScene(canvas) {
       return picture;
     } finally {
       for (const [node, visible] of hidden) node.visible = visible;
-      scene.remove(cardAnimal);
+      animalRoot.visible = animalTransform.visible;
+      animalRoot.position.copy(animalTransform.position);
+      animalRoot.quaternion.copy(animalTransform.quaternion);
+      animalRoot.scale.copy(animalTransform.scale);
       for (const plant of plants) {
         scene.remove(plant);
         plant.traverse((node) => {

@@ -410,7 +410,7 @@ function startGame(nextMode, keepTracking = false) {
   }
   mode = nextMode;
   game.start();
-  audio.resetStars();
+  audio.beginRound(gameSettings.animalId);
   heardJumps = heardScore = 0;
   heardDeath = false;
   scoreFlashUntil = 0;
@@ -565,6 +565,10 @@ function frame(now) {
     quiz.start(gameSettings.manualMode.questionsToUnlock);
   }
   game.step(dt, active);
+  audio.update(Math.min(dt, 0.25), {
+    animalId: gameSettings.animalId,
+    runningOnGround: active && game.state.phase === "playing" && game.state.y === 0 && game.state.vy === 0
+  });
   if (game.state.jumps > heardJumps) {
     audio.jump();
     heardJumps = game.state.jumps;
@@ -575,7 +579,7 @@ function frame(now) {
     scoreFlashUntil = now + 700;
   }
   if (game.state.phase === "over" && !heardDeath) {
-    audio.death();
+    audio.death(gameSettings.animalId);
     heardDeath = true;
     gameOverAt = now;
     $("game-card").classList.add("crashed");
@@ -608,7 +612,7 @@ renderReadyAnimal($("ready-animal"), gameSettings.animalId).then((result) => {
 }).catch(() => {
   $("ready-animal").hidden = true;
 });
-createRunnerScene($("game-canvas")).then((scene) => {
+createRunnerScene($("game-canvas"), gameSettings.animalId).then((scene) => {
   view = scene;
   view.setAnimal(gameSettings.animalId);
   $("play-button").disabled = false;
