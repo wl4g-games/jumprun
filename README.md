@@ -12,7 +12,7 @@
 </p>
 
 Play in your browser · 打开即玩 · No install · 无需安装<br>
-Jump with your body or press **Space** · **体感跳跃 / 空格操作**
+Jump with your body, or enable protected manual controls · **体感跳跃 / 可选防沉迷手动操作**
 
 **Default runner: 🦖 T. rex · 默认角色：霸王龙**
 
@@ -30,10 +30,12 @@ Animal Jump Run is a browser-based 3D endless runner. Choose a jumping animal, c
 
 - **10 animals · 十种角色：**默认霸王龙，还可选择豹子、兔子、狮子、大象、长颈鹿、熊猫、狐狸、猴子和企鹅。
 - **Progressive obstacles · 渐进障碍：**开局从仙人掌开始，随后随机出现豺、狼、虎、豹、野猪、剑齿虎，以及麒麟、貔貅、饕餮等上古神兽。
-- **Study lock · 小朋友锁：**默认每进行 10 分钟有效游戏触发一次趣味答题，完成后才能继续。
+- **Two control modes · 两种操作：**默认使用前置摄像头体感跳跃且无需答题；也可启用按键/点按模式，并自动强制开启防沉迷答题。
+- **Protected manual play · 手动防沉迷：**手动模式默认每进行 5 分钟有效游戏弹出题目，答对 1 题才可继续。
 - **100-question bank · 百题题库：**语文、数学、英语、地理、物理各 20 题，面向约 12 岁的小朋友，兼顾趣味性与学习价值。
 - **Local motion recognition · 本地体感识别：**延续原项目的本地 MediaPipe Pose Landmarker 与已训练 MLP 跳跃识别，不上传摄像头画面。
-- **Bilingual UI · 双语界面：**中英文默认跟随浏览器语言，也可在游戏内手动切换。
+- **Persistent preferences · 设置持久化：**动物、控制模式和答题选项保存在浏览器 localStorage，首次设置后刷新不会重复询问。
+- **Bilingual UI · 双语界面：**界面和全部 100 道题均支持中英文，默认跟随浏览器语言，也可随时切换。
 
 ## Pick your runner · 选择弹跳伙伴
 
@@ -49,29 +51,30 @@ Animal Jump Run is a browser-based 3D endless runner. Choose a jumping animal, c
 
 ## How to play · 操作方式
 
-| | Keyboard · 键盘 | Camera · 体感 |
+| | Manual · 手动（需启用） | Motion · 体感（默认） |
 |---|---|---|
-| **Start · 开始** | Press Space · 按空格 | Jump once · 原地跳一次 |
-| **Jump · 跳跃** | Press Space / ↑ · 按空格或上方向键 | Jump in place · 原地起跳 |
-| **Try again · 重来** | Press Space after a fall · 摔倒后按空格 | Jump once after a fall · 摔倒后跳一次 |
+| **Start · 开始** | Press Space / ↑ or tap · 按键或点按画面 | Jump once · 原地跳一次 |
+| **Jump · 跳跃** | Press Space / ↑ or tap · 按键或点按画面 | Jump in place · 原地起跳 |
+| **Try again · 重来** | Press Space / ↑ or tap · 按键或点按画面 | Jump once after a fall · 摔倒后跳一次 |
+| **Quiz · 答题** | Required on timer · 到时强制答题 | None · 无需答题 |
 
 - 吃到一颗胡萝卜获得 1 颗星，错过胡萝卜不会失败。
 - 越过障碍可获得星星；障碍大小和起跳准确度会影响奖励。
 - 随着成绩和速度提高，野生动物、史前动物、神兽及双障碍会逐步加入。
-- 没有摄像头也能完整游玩，直接使用键盘即可。
+- 没有摄像头时，可在“选择动物与控制方式”中启用手动模式；手动模式会强制定时答题。
 
-体感模式使用普通摄像头。授权后短暂站稳完成校准，头部或上半身入镜即可，不要求拍到脚；请预留安全、开阔的活动空间。
+体感模式固定请求前置摄像头，不再列出手机的后置、超广角或组合镜头。授权后短暂站稳完成校准，头部或上半身入镜即可，不要求拍到脚；右上角预览会绘制识别到的骨架点和连线。请预留安全、开阔的活动空间。
 
-## Study lock · 小朋友锁
+## Manual controls and quiz · 手动操作与答题
 
-小朋友锁在首次进入时即可设置，也可以在游戏中重新打开设置：
+首次进入时可以选择动物和控制方式，保存后会写入 localStorage；之后刷新直接使用上次选择，也可以随时重新打开设置：
 
-- 默认开启，每轮有效游戏时间为 **10 分钟**。
-- 可选择 **5 / 10 / 15 / 20 / 30 分钟**，也可以关闭。
-- 到时自动暂停游戏，并从内置 100 道题目中随机出题。
-- 可设置答对 **1 / 2 / 3 题**后解锁，默认需要答对 **2 题**。
-- 解锁后重新获得一整轮游戏时间；答错不会倒扣已答对的题数，并会显示知识讲解。
-- 只有游戏实际进行时才计时，设置界面、答题界面和暂停状态不会消耗时间。
+- 默认采用体感模式：只接受身体起跳，不计时、不弹题。
+- 启用手动模式后，空格、上方向键和点按游戏画面可触发跳跃，同时答题机制不可单独关闭。
+- 手动模式默认每轮 **5 分钟**，可选择 **5 / 10 / 15 / 20 / 30 分钟**。
+- 可设置答对 **1 / 2 / 3 题**后继续，默认答对 **1 题**。
+- 到时游戏画面完全暂停；答错会显示讲解并自动随机切换下一题，弹窗不会消失；达到正确题数后自动关闭并重置一轮时间。
+- 只有手动游戏实际进行时才计时，设置、答题和其他暂停状态不消耗时间。
 
 ## Motion detection · 本地体感识别
 
@@ -85,7 +88,7 @@ Camera video
   → game jump
 ```
 
-Pose Landmarker 模型、MediaPipe WASM 和 MLP 权重均随站点静态发布。运行时不依赖识别服务器、不上传视频，也不使用麦克风。摄像头权限要求通过 **HTTPS** 或 `localhost` 访问。
+Pose Landmarker 模型、MediaPipe WASM 和 MLP 权重均随站点静态发布。识别使用独立的视频帧循环，不依赖 3D 渲染是否已完成；运行时不依赖识别服务器、不上传视频，也不使用麦克风。摄像头权限要求通过 **HTTPS** 或 `localhost` 访问。
 
 ## Run locally · 本地运行
 

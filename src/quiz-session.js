@@ -1,7 +1,7 @@
 import { shuffledQuestions } from "./question-bank.js";
 
-export function createQuizSession(requiredCorrect = 2, random = Math.random) {
-  const required = [1, 2, 3].includes(Number(requiredCorrect)) ? Number(requiredCorrect) : 2;
+export function createQuizSession(requiredCorrect = 1, random = Math.random) {
+  const required = [1, 2, 3].includes(Number(requiredCorrect)) ? Number(requiredCorrect) : 1;
   let queue = shuffledQuestions(random);
   let index = 0;
   let correct = 0;

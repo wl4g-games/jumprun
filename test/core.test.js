@@ -5,10 +5,16 @@ import { ANIMALS, DEFAULT_ANIMAL_ID } from "../src/animal-catalog.js";
 import { createAnimalModel, disposeObject3D } from "../src/animal-model.js";
 import { OBSTACLE_SPECIES, obstacleSpecies } from "../src/obstacle-catalog.js";
 import { createObstacleModel } from "../src/obstacle-model.js";
-import { DEFAULT_KID_LOCK_SETTINGS, KidLockTimer, normalizeKidLockSettings } from "../src/kid-lock.js";
-import { QUESTION_BANK, QUESTION_SUBJECTS } from "../src/question-bank.js";
+import { DEFAULT_MANUAL_MODE_SETTINGS, ManualQuizTimer, normalizeManualModeSettings } from "../src/manual-quiz-timer.js";
+import { hasSavedGameSettings, loadGameSettings, saveGameSettings } from "../src/game-settings.js";
+import { QUESTION_BANK, QUESTION_SUBJECTS, localizeQuestion } from "../src/question-bank.js";
+import { ENGLISH_QUESTION_BANK } from "../src/question-bank.en.js";
 import { createQuizSession } from "../src/quiz-session.js";
 import { validateModel } from "../src/jump-features.js";
+import { personReady } from "../src/person-ready.js";
+import { createDinoGame } from "../src/dino-game.js";
+import { ENGLISH_TRANSLATIONS } from "../src/i18n.js";
+import { drawPoseOverlay } from "../src/pose-overlay.js";
 
 test("local MediaPipe and trained MLP artifacts are present and compatible", async () => {
   const modelUrl = new URL("../public/models/jump-visible-mlp.json", import.meta.url);
@@ -74,6 +80,17 @@ test("question bank contains 100 well-formed, balanced questions", () => {
   }
 });
 
+test("all 100 questions have complete English versions with shared answers", () => {
+  assert.equal(ENGLISH_QUESTION_BANK.length, QUESTION_BANK.length);
+  assert.deepEqual(ENGLISH_QUESTION_BANK.map(({ id }) => id), QUESTION_BANK.map(({ id }) => id));
+  for (const item of QUESTION_BANK) {
+    const english = localizeQuestion(item, "en");
+    assert.equal(english.options.length, item.options.length, item.id);
+    assert.doesNotMatch(`${english.subject}${english.prompt}${english.options.join("")}${english.explanation}`, /[\u3400-\u9fff]/u, item.id);
+    assert.equal(localizeQuestion(item, "zh"), item);
+  }
+});
+
 test("quiz session counts only correct answers and unlocks at the configured goal", () => {
   const session = createQuizSession(2, () => 0.42);
   const first = session.current();
@@ -87,14 +104,104 @@ test("quiz session counts only correct answers and unlocks at the configured goa
   assert.equal(result.completed, true);
 });
 
-test("study lock defaults to ten minutes and resets after a quiz", () => {
-  assert.deepEqual(normalizeKidLockSettings(), DEFAULT_KID_LOCK_SETTINGS);
-  const timer = new KidLockTimer({ enabled: true, durationMinutes: 10, questionsToUnlock: 3 });
-  assert.equal(timer.tick(599, true), false);
+test("manual controls default off with a five-minute, one-answer quiz", () => {
+  assert.deepEqual(normalizeManualModeSettings(), DEFAULT_MANUAL_MODE_SETTINGS);
+  assert.equal(new ManualQuizTimer().tick(3600, true), false);
+  const timer = new ManualQuizTimer({ enabled: true, durationMinutes: 5, questionsToUnlock: 1 });
+  assert.equal(timer.tick(299, true), false);
   assert.equal(timer.tick(1, true), true);
   assert.equal(timer.locked, true);
   timer.unlock();
   assert.equal(timer.locked, false);
-  assert.equal(timer.remainingSeconds, 600);
-  assert.equal(timer.settings.questionsToUnlock, 3);
+  assert.equal(timer.remainingSeconds, 300);
+  assert.equal(timer.settings.questionsToUnlock, 1);
+});
+
+test("animal and manual quiz choices persist without reconfiguration", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value)
+  };
+  assert.equal(hasSavedGameSettings(storage), false);
+  const saved = saveGameSettings({
+    animalId: "leopard",
+    manualMode: { enabled: true, durationMinutes: 15, questionsToUnlock: 3 }
+  }, storage);
+  assert.equal(hasSavedGameSettings(storage), true);
+  assert.deepEqual(loadGameSettings(storage), saved);
+});
+
+test("legacy visitors keep their animal without being opted into manual controls", () => {
+  const legacy = JSON.stringify({
+    animalId: "rabbit",
+    kidLock: { enabled: true, durationMinutes: 30, questionsToUnlock: 3 }
+  });
+  const storage = {
+    getItem: (key) => key === "jump-run-settings-v1" ? legacy : null,
+    setItem() {}
+  };
+  assert.equal(hasSavedGameSettings(storage), true);
+  assert.deepEqual(loadGameSettings(storage), {
+    animalId: "rabbit",
+    manualMode: DEFAULT_MANUAL_MODE_SETTINGS
+  });
+});
+
+test("motion readiness cannot bypass the camera while manual mode can", () => {
+  const tracking = { tracked: true, ready: true };
+  assert.equal(personReady("camera", false, tracking, 1000, 950), false);
+  assert.equal(personReady("camera", true, tracking, 1000, 950), true);
+  assert.equal(personReady("manual", false, {}, 1000, -Infinity), true);
+});
+
+test("camera UI requests one front-facing stream without enumerating lenses", async () => {
+  const [main, html] = await Promise.all([
+    readFile(new URL("../src/main.js", import.meta.url), "utf8"),
+    readFile(new URL("../index.html", import.meta.url), "utf8")
+  ]);
+  assert.match(main, /cameraConstraints\(\{ exact: "user" \}\)/);
+  assert.match(main, /requestVideoFrameCallback/);
+  assert.doesNotMatch(main, /enumerateDevices|device-select/);
+  assert.doesNotMatch(html, /device-select/);
+});
+
+test("pose overlay draws mobile-visible landmarks and skeleton lines", () => {
+  const calls = [];
+  const context = new Proxy({}, {
+    get(target, key) {
+      if (key in target) return target[key];
+      target[key] = (...args) => calls.push([key, ...args]);
+      return target[key];
+    },
+    set(target, key, value) {
+      target[key] = value;
+      return true;
+    }
+  });
+  const canvas = { width: 0, height: 0, clientWidth: 100, hidden: true, getContext: () => context };
+  const video = { videoWidth: 640, videoHeight: 480, clientWidth: 100 };
+  const points = Array.from({ length: 25 }, () => null);
+  points[11] = { x: 0.4, y: 0.4, visibility: 0.9 };
+  points[12] = { x: 0.6, y: 0.4, visibility: 0.9 };
+  assert.equal(drawPoseOverlay(canvas, video, points), 2);
+  assert.equal(canvas.hidden, false);
+  assert.ok(calls.some(([name]) => name === "lineTo"));
+  assert.ok(calls.filter(([name]) => name === "arc").every(([, , , radius]) => radius >= 22));
+});
+
+test("every static Chinese UI label has an English translation", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const keys = [...html.matchAll(/data-i18n(?:-label)?="([^"]+)"/g)].map((match) => match[1]);
+  for (const key of keys.filter((value) => /[\u3400-\u9fff]/u.test(value))) {
+    assert.ok(ENGLISH_TRANSLATIONS[key], key);
+  }
+});
+
+test("a blocked quiz frame leaves the running game completely paused", () => {
+  const game = createDinoGame(() => 0.5);
+  game.start();
+  const before = structuredClone(game.state);
+  game.step(3, false);
+  assert.deepEqual(game.state, before);
 });
