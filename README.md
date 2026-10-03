@@ -104,14 +104,26 @@ npm run build
 npm run preview
 ```
 
+## Container image · 容器镜像
+
+每次发布都会生成一个 `linux/amd64` 静态站点镜像，同时提供版本标签和 `latest` 标签：
+
+```sh
+docker run --rm --name jumprun -p 8080:8080 \
+  ghcr.io/wl4g-games/jumprun:latest
+```
+
+启动后访问 <http://localhost:8080/>。镜像使用非 root NGINX 提供静态文件，并内置健康检查；通过远程主机访问且需要摄像头时，请在前面配置 HTTPS。
+
 ## CI, release and deployment · 持续集成与自动发布
 
 [Pull Request CI](.github/workflows/ci.yml) 会在 PR 创建或更新时安装依赖、运行全部测试，并验证生产构建。代码进入 `main` 后，[release workflow](.github/workflows/release.yml) 会自动执行：
 
 ```text
-版本计算 → npm ci → npm test → Vite build
+版本计算 → npm ci → Vite build
         → jumprun-vX.Y.Z-dist.tar.gz → GitHub Release
-        → GitHub Pages deploy
+             ├→ linux/amd64 image → ghcr.io/wl4g-games/jumprun
+             └→ GitHub Pages deploy
 ```
 
 首次发布使用 `package.json` 中的稳定版本；后续根据提交类型递增语义版本，并在重复运行同一提交时复用已有标签。完整规则见 [CI/CD architecture](.github/workflows/README.md)。
