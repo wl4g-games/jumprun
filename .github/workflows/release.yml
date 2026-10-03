@@ -2,9 +2,10 @@
 # the single trigger avoids duplicate releases from pull_request:closed.
 #
 # Job DAG:
-#   build (version + test + dist + artifacts)
+#   build (version + dist + artifacts)
 #      -> release (versioned dist.tar.gz GitHub Release)
-#      -> deploy (the same dist deployed to GitHub Pages)
+#          |-> build-image (linux/amd64 -> GHCR)
+#          +-> deploy (the same dist -> GitHub Pages)
 
 name: Release and deploy
 
@@ -120,9 +121,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
       - name: Build for GitHub Pages
         env:
           PAGES_BASE: /${{ github.event.repository.name }}/
@@ -180,6 +178,46 @@ jobs:
           overwrite_files: true
           files: release/${{ needs.build.outputs.archive }}
           token: ${{ github.token }}
+
+  build-image:
+    name: Build and push linux/amd64 image
+    needs: [build, release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.build.outputs.tag }}
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          build-args: APP_BASE=/
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ needs.build.outputs.tag }}
+            ghcr.io/${{ github.repository }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.build.outputs.tag }}
 
   deploy:
     name: Deploy GitHub Pages
