@@ -7,8 +7,28 @@ GitHub Release, an amd64 GHCR image, and a GitHub Pages deployment.
 
 | File | Trigger | Responsibility |
 |---|---|---|
-| `ci.yml` | Pull request opened, updated, reopened, or marked ready | Install dependencies, run tests, and verify the production build |
+| `ci.yml` | Pull request opened, updated, reopened, or marked ready | Post a sticky PR status comment, install dependencies, run tests, and verify the production build |
 | `release.yml` | Push to `main` (including a merged PR), or manual dispatch | Package `dist`, publish a GitHub Release, then publish an amd64 image and deploy Pages in parallel |
+
+## Status reporting
+
+Pull request CI maintains one bot-authored status comment instead of adding a
+new comment for every run. The comment is updated when validation starts and
+when `build-and-test` finishes. Its hidden marker includes the Actions run ID,
+so a cancelled older run cannot overwrite the status of a newer run. Comment
+failures are emitted as workflow warnings and do not change the validation
+result.
+
+`build-and-test` remains the authoritative branch-protection check. The
+comment jobs are reporting only and must not be configured as required checks.
+For pull requests from forks, GitHub may downgrade `GITHUB_TOKEN` to read-only;
+the native check still reports the result if the optional comment cannot be
+written.
+
+The release workflow uses GitHub's native job checks rather than duplicating
+them in comments. `build` and `release` report the bundle and GitHub Release,
+then `build-image` and `deploy` report the parallel GHCR and GitHub Pages work.
+The `github-pages` environment also exposes the deployment result and URL.
 
 ## Release pipeline
 

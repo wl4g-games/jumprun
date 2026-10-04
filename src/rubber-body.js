@@ -22,20 +22,20 @@ export function createRubberBody() {
         wasAirborne = false;
       }
       if (state.jumps > lastJumps) {
-        stretch.velocity += 9;
-        sway.velocity -= 1.05;
+        stretch.velocity += 1.4;
+        sway.velocity -= 0.55;
       }
       if (wasAirborne && !airborne) {
-        stretch.velocity -= 8.5;
-        sway.velocity += 1.2;
+        stretch.velocity -= 1.6;
+        sway.velocity += 0.62;
       }
       lastJumps = state.jumps;
       wasAirborne = airborne;
       const phase = state.distance / 160 * Math.PI * 2;
       const running = state.phase === "playing" && !airborne;
-      const target = airborne ? 0.12 : running ? Math.sin(phase * 2) * 0.24 : 0;
-      const elongation = Math.max(-0.48, Math.min(0.85, stepSpring(stretch, target, dt, 85, 7)));
-      const lean = stepSpring(sway, running ? Math.sin(phase) * 0.055 : 0, dt, 70, 7);
+      const target = airborne ? 0.025 : running ? Math.sin(phase * 2) * 0.018 : 0;
+      const elongation = Math.max(-0.075, Math.min(0.11, stepSpring(stretch, target, dt, 95, 11)));
+      const lean = stepSpring(sway, running ? Math.sin(phase) * 0.026 : 0, dt, 78, 10);
       const vertical = 1 + elongation;
       return { vertical, horizontal: 1 / Math.sqrt(vertical), lean };
     }

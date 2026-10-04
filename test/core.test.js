@@ -15,6 +15,8 @@ import { personReady } from "../src/person-ready.js";
 import { createDinoGame } from "../src/dino-game.js";
 import { ENGLISH_TRANSLATIONS } from "../src/i18n.js";
 import { drawPoseOverlay } from "../src/pose-overlay.js";
+import { animateAnimalGait } from "../src/animal-gait.js";
+import { ANIMAL_AUDIO_PROFILES, GroundCallTimer } from "../src/animal-audio.js";
 
 test("local MediaPipe and trained MLP artifacts are present and compatible", async () => {
   const modelUrl = new URL("../public/models/jump-visible-mlp.json", import.meta.url);
@@ -44,6 +46,82 @@ test("every selectable animal creates a renderable model", () => {
     assert.equal(runner.animal.id, animal.id);
     disposeObject3D(runner.root);
   }
+});
+
+test("animal rigs use the correct number of articulated ground limbs", () => {
+  const expectedLegs = { trex: 2, penguin: 2 };
+  for (const animal of ANIMALS) {
+    const runner = createAnimalModel(animal.id);
+    const count = expectedLegs[animal.id] || 4;
+    assert.equal(runner.rig.legs.length, count, animal.id);
+    for (const leg of runner.rig.legs) {
+      assert.ok(leg.hip && leg.knee && leg.ankle && leg.foot, `${animal.id}/${leg.id}`);
+      assert.ok(leg.upperLength > 0 && leg.lowerLength > 0, `${animal.id}/${leg.id}`);
+      assert.ok(Object.values(leg.rest).every(Number.isFinite), `${animal.id}/${leg.id}`);
+    }
+    disposeObject3D(runner.root);
+  }
+});
+
+test("every species gait moves joints on land and changes to an airborne pose", () => {
+  for (const animal of ANIMALS) {
+    const runner = createAnimalModel(animal.id);
+    const angles = () => runner.rig.legs.flatMap(({ hip, knee, ankle, foot }) => [
+      hip.rotation.z,
+      knee.rotation.z,
+      ankle.rotation.z,
+      foot.rotation.z
+    ]);
+    const rest = angles();
+    const groundPose = animateAnimalGait(runner.rig, {
+      distance: 53,
+      elapsed: 1,
+      running: true,
+      airborne: false,
+      verticalVelocity: 0
+    });
+    const running = angles();
+    assert.ok(running.some((value, index) => Math.abs(value - rest[index]) > 1e-3), `${animal.id} run`);
+    assert.ok(Object.values(groundPose).every(Number.isFinite), `${animal.id} body pose`);
+    animateAnimalGait(runner.rig, {
+      distance: 53,
+      elapsed: 1.2,
+      running: false,
+      airborne: true,
+      verticalVelocity: 320
+    });
+    const airborne = angles();
+    assert.ok(airborne.some((value, index) => Math.abs(value - running[index]) > 1e-3), `${animal.id} jump`);
+    disposeObject3D(runner.root);
+  }
+});
+
+test("animal calls and unique failure motifs cover the complete roster", async () => {
+  assert.deepEqual(Object.keys(ANIMAL_AUDIO_PROFILES), ANIMALS.map(({ id }) => id));
+  const motifs = new Set();
+  for (const animal of ANIMALS) {
+    const profile = ANIMAL_AUDIO_PROFILES[animal.id];
+    const audioFile = new URL(`../public/${profile.file}`, import.meta.url);
+    const info = await stat(audioFile);
+    assert.ok(info.size > 1_000 && info.size < 250 * 1024, animal.id);
+    assert.ok(profile.start >= 0 && profile.duration >= 0.5 && profile.duration <= 1, animal.id);
+    assert.ok(profile.gain > 0 && profile.gain <= 0.5, animal.id);
+    assert.ok(profile.failure.length >= 3, animal.id);
+    motifs.add(JSON.stringify(profile.failure));
+  }
+  assert.equal(motifs.size, ANIMALS.length);
+});
+
+test("ground calls count only active running time and never burst after a stall", () => {
+  const timer = new GroundCallTimer();
+  for (let index = 0; index < 49; index++) assert.equal(timer.tick(0.1, true), false);
+  assert.equal(timer.tick(0.1, false), false);
+  assert.equal(timer.tick(0.1, true), true);
+  timer.reset();
+  assert.equal(timer.tick(30, true), false);
+  for (let index = 0; index < 18; index++) assert.equal(timer.tick(0.25, true), false);
+  assert.equal(timer.tick(0.25, true), true);
+  assert.equal(timer.tick(0.25, true), false);
 });
 
 test("obstacles progress from cacti to wild and mythical creatures", () => {

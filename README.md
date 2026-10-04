@@ -7,8 +7,8 @@
 
 <p>
   <a href="https://wl4g-games.github.io/jumprun/"><img src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20NOW-%E7%AB%8B%E5%8D%B3%E5%BC%80%E7%8E%A9-568445?style=for-the-badge" alt="Play Animal Jump Run · 立即开玩" height="42"></a>
-  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/ci.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/ci.yml/badge.svg" alt="Pull request CI status" height="28"></a>
-  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/release.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/release.yml/badge.svg" alt="Release and deployment status" height="28"></a>
+  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/ci.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/ci.yml/badge.svg?event=pull_request" alt="Pull request CI status" height="28"></a>
+  <a href="https://github.com/wl4g-games/jumprun/actions/workflows/release.yml"><img src="https://github.com/wl4g-games/jumprun/actions/workflows/release.yml/badge.svg?branch=main&event=push" alt="Release and deployment status" height="28"></a>
 </p>
 
 Play in your browser · 打开即玩 · No install · 无需安装<br>
@@ -24,11 +24,17 @@ Animal Jump Run is a browser-based 3D endless runner. Choose a jumping animal, c
 
 《动物跳跳跑》是一款浏览器 3D 无尽跑酷游戏。选择喜欢的动物，追逐胡萝卜、跨越逐渐丰富的障碍，在不断加速的世界中挑战最好成绩。
 
-本项目基于并感谢原项目 [Bunny Run](https://github.com/guigulaoshi/bunny-run) 改造。
+<p align="center">
+  <a href="https://wl4g-games.github.io/jumprun/"><b>Play Animal Jump Run · 开始游戏</b></a><br>
+  <sub>🦖 🐆 🐇 🦁 🐘 🦒 🐼 🦊 🐒 🐧</sub>
+</p>
 
 ## What is new · 改造内容
 
 - **10 animals · 十种角色：**默认霸王龙，还可选择豹子、兔子、狮子、大象、长颈鹿、熊猫、狐狸、猴子和企鹅。
+- **Articulated 3D runners · 真实关节角色：**本地 PBR 动物网格在浏览器中生成蒙皮骨骼；霸王龙和企鹅使用双足步态，其余动物按各自四足落脚节奏驱动髋、膝、踝与脚掌。
+- **Dynamic coats · 动态毛发：**兔、豹、狮、长颈鹿、熊猫、狐狸和猴子拥有分物种毛层，奔跑与腾空时毛尖随相对气流摆动；企鹅使用短羽效果，霸王龙与大象保留鳞片/皮肤质感而不会错误长毛。
+- **Species voices · 动物声音：**落地持续奔跑约 5 秒会轻声播放对应动物的真实录音；撞击时每种动物使用不同的趣味失败旋律并叠加自己的叫声。霸王龙采用明确标注的科学启发鳄类拟声，并非伪称真实录音。
 - **Progressive obstacles · 渐进障碍：**开局从仙人掌开始，随后随机出现豺、狼、虎、豹、野猪、剑齿虎，以及麒麟、貔貅、饕餮等上古神兽。
 - **Two control modes · 两种操作：**默认使用前置摄像头体感跳跃且无需答题；也可启用按键/点按模式，并自动强制开启防沉迷答题。
 - **Protected manual play · 手动防沉迷：**手动模式默认每进行 5 分钟有效游戏弹出题目，答对 1 题才可继续。
@@ -47,7 +53,7 @@ Animal Jump Run is a browser-based 3D endless runner. Choose a jumping animal, c
 | 🐼 | 熊猫 · Panda | 🦊 | 狐狸 · Fox |
 | 🐒 | 猴子 · Monkey | 🐧 | 企鹅 · Penguin |
 
-所有角色都使用同一套跑酷规则，选择只改变角色造型与个性，不会带来数值优势。
+所有角色都使用同一套跑酷规则，选择会改变 PBR 造型、双足/四足动作、毛发或羽毛风动、叫声和失败音乐，但不会带来数值优势。
 
 ## How to play · 操作方式
 
@@ -120,7 +126,7 @@ docker run --rm --name jumprun -p 8080:8080 \
 
 ## CI, release and deployment · 持续集成与自动发布
 
-[Pull Request CI](.github/workflows/ci.yml) 会在 PR 创建或更新时安装依赖、运行全部测试，并验证生产构建。代码进入 `main` 后，[release workflow](.github/workflows/release.yml) 会自动执行：
+[Pull Request CI](.github/workflows/ci.yml) 会在 PR 创建或更新时动态维护一条 started/final 状态评论，同时安装依赖、运行全部测试并验证生产构建；旧运行不会覆盖新运行的评论。代码进入 `main` 后，[release workflow](.github/workflows/release.yml) 会自动执行：
 
 ```text
 版本计算 → npm ci → Vite build
@@ -140,8 +146,3 @@ Code: [MIT](LICENSE). Original artwork: [CC BY 4.0](ASSET-LICENSE). Third-party 
 代码使用 MIT 许可，原始美术使用 CC BY 4.0。第三方资源遵循各自许可，详见许可声明。使用、修改或商用时，请保留所需署名与许可信息。
 
 感谢 [guigulaoshi](https://github.com/guigulaoshi) 创作并开源原版 [Bunny Run](https://github.com/guigulaoshi/bunny-run)，本项目在其基础上继续改造。
-
-<p align="center">
-  <a href="https://wl4g-games.github.io/jumprun/"><b>Play Animal Jump Run · 开始游戏</b></a><br>
-  <sub>🦖 🐆 🐇 🦁 🐘 🦒 🐼 🦊 🐒 🐧</sub>
-</p>

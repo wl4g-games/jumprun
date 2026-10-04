@@ -17,6 +17,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  comment-start:
+    name: Report CI start
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout trusted CI comment script
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Update PR CI comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JUMPRUN_PR_NUMBER: ${{ github.event.pull_request.number }}
+          JUMPRUN_COMMENT_PHASE: started
+          JUMPRUN_RUN_ID: ${{ github.run_id }}
+          JUMPRUN_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node .github/scripts/upsert-pr-ci-comment.mjs || \
+            echo "::warning title=JumpRun PR CI comment::Could not publish the CI start comment."
+
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
@@ -43,3 +71,33 @@ jobs:
         env:
           PAGES_BASE: /${{ github.event.repository.name }}/
         run: npm run build -- --base="${PAGES_BASE}"
+
+  comment-final:
+    name: Report CI result
+    needs: [comment-start, build-and-test]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout trusted CI comment script
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Update PR CI comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JUMPRUN_PR_NUMBER: ${{ github.event.pull_request.number }}
+          JUMPRUN_COMMENT_PHASE: final
+          JUMPRUN_RUN_ID: ${{ github.run_id }}
+          JUMPRUN_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          JUMPRUN_BUILD_RESULT: ${{ needs.build-and-test.result }}
+        run: |
+          node .github/scripts/upsert-pr-ci-comment.mjs || \
+            echo "::warning title=JumpRun PR CI comment::Could not publish the final CI comment."

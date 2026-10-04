@@ -8,7 +8,7 @@ export function createToyFinish(renderer) {
     panel.lookAt(0, 0, 0);
     studio.add(panel);
   }
-  const pmrem = new THREE.PMREMGenerator(renderer), environment = pmrem.fromScene(studio, 0.06);
+  const pmrem = new THREE.PMREMGenerator(renderer), environment = pmrem.fromScene(studio, 0.04);
   studio.traverse((o) => {
     o.geometry?.dispose();
     o.material?.dispose();
