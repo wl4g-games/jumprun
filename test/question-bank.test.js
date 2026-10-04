@@ -108,6 +108,17 @@ test("questions meet basic age-appropriate quality and answer-position checks", 
   }
 });
 
+test("question bank avoids gender-sensitive themes", () => {
+  const allText = (item) => `${item.prompt} ${item.options.join(" ")} ${item.explanation}`;
+
+  for (const item of QUESTION_BANK) {
+    assert.doesNotMatch(allText(item), /女性|妇女|女孩|性别|缠足|女权|女性参政/u, item.id);
+  }
+  for (const item of ENGLISH_QUESTION_BANK) {
+    assert.doesNotMatch(allText(item), /\b(?:woman|women|girl|girls|female|gender|sex|suffrage)\b|foot[- ]binding/iu, item.id);
+  }
+});
+
 test("weighted picker exhausts the full bank and avoids recent repeats", () => {
   const picker = createWeightedQuestionPicker(seededRandom());
   const seenFirstCycle = [];
