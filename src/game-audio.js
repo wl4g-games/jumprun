@@ -1,4 +1,10 @@
-import { animalAudioProfile, GroundCallTimer } from "./animal-audio.js";
+import {
+  animalAudioProfile,
+  COLLISION_CALL_GAIN_SCALE,
+  FAILURE_JINGLE,
+  GROUND_CALL_GAIN_SCALE,
+  GroundCallTimer
+} from "./animal-audio.js";
 
 function stopNode(node) {
   try {
@@ -212,7 +218,9 @@ export function createGameAudio({ assetBase } = {}) {
         groundCallTimer.reset();
         primeAnimal(currentAnimalId);
       }
-      if (groundCallTimer.tick(dt, runningOnGround)) void playAnimalCall(currentAnimalId);
+      if (groundCallTimer.tick(dt, runningOnGround)) {
+        void playAnimalCall(currentAnimalId, { gainScale: GROUND_CALL_GAIN_SCALE });
+      }
     },
     stars(count) {
       if (!context || context.state !== "running" || muted || !Number.isFinite(count)) return;
@@ -240,11 +248,10 @@ export function createGameAudio({ assetBase } = {}) {
       tone("triangle", 2093, 2093, 0.15, 0.08, 0.07);
     },
     death(animalId = currentAnimalId) {
-      const profile = animalAudioProfile(animalId);
-      for (const event of profile.failure) {
+      for (const event of FAILURE_JINGLE) {
         tone(event.type, event.from, event.to, event.duration, event.delay, event.level, event.wobble);
       }
-      void playAnimalCall(animalId, { delay: 0.06, gainScale: 0.72 });
+      void playAnimalCall(animalId, { delay: 0.06, gainScale: COLLISION_CALL_GAIN_SCALE });
     },
     setMuted(value) {
       muted = Boolean(value);

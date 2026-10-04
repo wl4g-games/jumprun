@@ -22,7 +22,13 @@ import { createDinoGame } from "../src/dino-game.js";
 import { ENGLISH_TRANSLATIONS } from "../src/i18n.js";
 import { drawPoseOverlay } from "../src/pose-overlay.js";
 import { animateAnimalGait } from "../src/animal-gait.js";
-import { ANIMAL_AUDIO_PROFILES, GroundCallTimer } from "../src/animal-audio.js";
+import {
+  ANIMAL_AUDIO_PROFILES,
+  FAILURE_JINGLE,
+  GROUND_CALL_GAIN_SCALE,
+  GROUND_CALL_INTERVAL_SECONDS,
+  GroundCallTimer
+} from "../src/animal-audio.js";
 
 test("local MediaPipe and trained MLP artifacts are present and compatible", async () => {
   const modelUrl = new URL("../public/models/jump-visible-mlp.json", import.meta.url);
@@ -102,30 +108,40 @@ test("every species gait moves joints on land and changes to an airborne pose", 
   }
 });
 
-test("animal calls and unique failure motifs cover the complete roster", async () => {
+test("species calls cover the roster while collisions share one comic sting", async () => {
   assert.deepEqual(Object.keys(ANIMAL_AUDIO_PROFILES), ANIMALS.map(({ id }) => id));
-  const motifs = new Set();
+  const callSignatures = new Set();
   for (const animal of ANIMALS) {
     const profile = ANIMAL_AUDIO_PROFILES[animal.id];
     const audioFile = new URL(`../public/${profile.file}`, import.meta.url);
     const info = await stat(audioFile);
     assert.ok(info.size > 1_000 && info.size < 250 * 1024, animal.id);
-    assert.ok(profile.start >= 0 && profile.duration >= 0.5 && profile.duration <= 1, animal.id);
+    assert.ok(profile.start >= 0 && profile.duration >= 0.5 && profile.duration <= 1.3, animal.id);
     assert.ok(profile.gain > 0 && profile.gain <= 0.5, animal.id);
-    assert.ok(profile.failure.length >= 3, animal.id);
-    motifs.add(JSON.stringify(profile.failure));
+    callSignatures.add(JSON.stringify([
+      profile.file,
+      profile.start,
+      profile.duration,
+      profile.playbackRate,
+      profile.highpass
+    ]));
   }
-  assert.equal(motifs.size, ANIMALS.length);
+  assert.equal(callSignatures.size, ANIMALS.length);
+  assert.ok(FAILURE_JINGLE.length >= 3);
+  assert.equal(Object.isFrozen(FAILURE_JINGLE), true);
+  assert.ok(GROUND_CALL_GAIN_SCALE > 1);
 });
 
-test("ground calls count only active running time and never burst after a stall", () => {
+test("ground calls fire every ten active running seconds and never burst after a stall", () => {
   const timer = new GroundCallTimer();
-  for (let index = 0; index < 49; index++) assert.equal(timer.tick(0.1, true), false);
+  assert.equal(timer.intervalSeconds, GROUND_CALL_INTERVAL_SECONDS);
+  assert.equal(GROUND_CALL_INTERVAL_SECONDS, 10);
+  for (let index = 0; index < 99; index++) assert.equal(timer.tick(0.1, true), false);
   assert.equal(timer.tick(0.1, false), false);
   assert.equal(timer.tick(0.1, true), true);
   timer.reset();
   assert.equal(timer.tick(30, true), false);
-  for (let index = 0; index < 18; index++) assert.equal(timer.tick(0.25, true), false);
+  for (let index = 0; index < 38; index++) assert.equal(timer.tick(0.25, true), false);
   assert.equal(timer.tick(0.25, true), true);
   assert.equal(timer.tick(0.25, true), false);
 });

@@ -26,6 +26,7 @@ import { createAdminLockDialog } from "./admin-lock-dialog.js";
 import { createQuizDialog } from "./quiz-dialog.js";
 import { localizeQuestion } from "./question-bank.js";
 import { drawPoseOverlay } from "./pose-overlay.js";
+import { createFullscreenController } from "./fullscreen-controller.js";
 import "./style.css";
 const $ = (id) => document.getElementById(id);
 const video = $("video"), game = createDinoGame(), detector = new LearnedJumpDetector();
@@ -64,6 +65,11 @@ const status = (message) => {
   $("camera-status").textContent = cameraStatus();
 };
 applyLanguage();
+const fullscreen = createFullscreenController({
+  root: document.documentElement,
+  buttons: document.querySelectorAll("[data-fullscreen-toggle]"),
+  status: $("fullscreen-status")
+}, { translate: t });
 const setupDialog = $("setup-dialog");
 const adminLockDialogElement = $("admin-lock-dialog");
 const quiz = createQuizDialog({
@@ -323,6 +329,7 @@ function switchLanguage() {
   refreshAdminLockUi();
   adminLock.refreshLanguage();
   quiz.refreshLanguage();
+  fullscreen.refreshLanguage();
 }
 for (const button of document.querySelectorAll("[data-language-switch]")) button.onclick = switchLanguage;
 async function loadModel() {
