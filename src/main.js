@@ -12,9 +12,16 @@ import { motionHint, prepareMotion } from "./motion-startup.js";
 import { menuJump } from "./menu-jump.js";
 import { createGameAudio } from "./game-audio.js";
 import { ANIMALS, animalById } from "./animal-catalog.js";
-import { hasSavedGameSettings, loadGameSettings, saveGameSettings } from "./game-settings.js";
+import {
+  applyGameSettings,
+  GAME_SETTINGS_STORAGE_KEY,
+  hasSavedGameSettings,
+  loadGameSettings,
+  mergeQuizPolicySettings,
+  saveGameSettings
+} from "./game-settings.js";
 import { ManualQuizTimer } from "./manual-quiz-timer.js";
-import { createQuizLockStateStore } from "./quiz-lock-state.js";
+import { createQuizLockStateStore, QUIZ_LOCK_STORAGE_KEY } from "./quiz-lock-state.js";
 import { createAdminLockDialog } from "./admin-lock-dialog.js";
 import { createQuizDialog } from "./quiz-dialog.js";
 import { localizeQuestion } from "./question-bank.js";
@@ -79,8 +86,12 @@ const quiz = createQuizDialog({
 const adminLock = createAdminLockDialog({
   dialog: adminLockDialogElement,
   title: $("admin-lock-title"),
+  authPanel: $("admin-auth-panel"),
+  settingsPanel: $("admin-settings-panel"),
   current: $("admin-lock-current"),
   enabled: $("admin-lock-enabled"),
+  duration: $("admin-quiz-duration"),
+  correctCount: $("admin-quiz-correct-count"),
   password: $("admin-password"),
   confirmRow: $("admin-password-confirm-row"),
   confirmation: $("admin-password-confirm"),
@@ -88,17 +99,28 @@ const adminLock = createAdminLockDialog({
   cancel: $("admin-lock-cancel"),
   save: $("admin-lock-save")
 }, {
-  stateStore: quizLockState,
   translate: t,
-  onChanged: (enabled) => {
-    quizTimer.setLockEnabled(enabled);
-    if (!enabled) quiz.dismiss();
-    refreshSettingsSummary();
-    refreshControlUi();
-    refreshQuizHud();
-    refreshAdminLockUi();
-    lastFrame = 0;
-    showPendingQuiz();
+  getQuizSettings: () => ({
+    lockEnabled: quizTimer.lockEnabled,
+    durationMinutes: gameSettings.manualMode.durationMinutes,
+    questionsToUnlock: gameSettings.manualMode.questionsToUnlock
+  }),
+  onSave: (settings) => {
+    const requiredCountChanged = settings.questionsToUnlock !== gameSettings.manualMode.questionsToUnlock;
+    gameSettings = applyGameSettings({
+      ...gameSettings,
+      manualMode: {
+        ...gameSettings.manualMode,
+        durationMinutes: settings.durationMinutes,
+        questionsToUnlock: settings.questionsToUnlock
+      }
+    }, { persist: true, setupComplete: startupComplete });
+    const lockState = quizLockState.setEnabled(settings.lockEnabled);
+    quizTimer.configure(gameSettings.manualMode);
+    quizTimer.setLockEnabled(lockState.enabled);
+    if (!lockState.enabled || (requiredCountChanged && quiz.isOpen())) quiz.dismiss();
+    refreshQuizPolicyUi();
+    return true;
   }
 });
 
@@ -157,19 +179,9 @@ function refreshAnimalPickerLanguage() {
   }
 }
 
-function updateManualModeControls() {
-  const enabled = $("manual-mode-enabled").checked;
-  $("quiz-duration").disabled = !enabled;
-  $("quiz-correct-count").disabled = !enabled;
-  $("manual-mode-enabled").closest(".manual-mode-config").classList.toggle("is-disabled", !enabled);
-}
-
 function fillSetup(settings) {
   draftSettings = structuredClone(settings);
   $("manual-mode-enabled").checked = draftSettings.manualMode.enabled;
-  $("quiz-duration").value = String(draftSettings.manualMode.durationMinutes);
-  $("quiz-correct-count").value = String(draftSettings.manualMode.questionsToUnlock);
-  updateManualModeControls();
   selectDraftAnimal(draftSettings.animalId);
 }
 
@@ -211,6 +223,41 @@ function refreshQuizHud() {
   score.classList.toggle("is-warning", quizTimer.remainingSeconds <= 60);
 }
 
+function refreshQuizPolicyUi() {
+  refreshSettingsSummary();
+  refreshControlUi();
+  refreshQuizHud();
+  refreshAdminLockUi();
+  lastFrame = 0;
+}
+
+function syncRemoteQuizPolicy() {
+  const previousDuration = gameSettings.manualMode.durationMinutes;
+  const previousCorrectCount = gameSettings.manualMode.questionsToUnlock;
+  const merged = mergeQuizPolicySettings(gameSettings, loadGameSettings());
+  if (merged.manualMode.durationMinutes === previousDuration
+    && merged.manualMode.questionsToUnlock === previousCorrectCount) return;
+
+  gameSettings = merged;
+  quizTimer.configure(gameSettings.manualMode);
+  if (previousCorrectCount !== gameSettings.manualMode.questionsToUnlock && quiz.isOpen()) quiz.dismiss();
+  refreshQuizPolicyUi();
+  showPendingQuiz();
+}
+
+function syncRemoteQuizLock() {
+  quizTimer.sync();
+  if (quiz.isOpen() && !quizTimer.isBlocking()) quiz.dismiss();
+  refreshQuizPolicyUi();
+  showPendingQuiz();
+}
+
+function handleStorageChange(event) {
+  if (event.storageArea && event.storageArea !== globalThis.localStorage) return;
+  if (event.key === GAME_SETTINGS_STORAGE_KEY) syncRemoteQuizPolicy();
+  if (event.key === QUIZ_LOCK_STORAGE_KEY) syncRemoteQuizLock();
+}
+
 function openSetup() {
   fillSetup(gameSettings);
   $("setup-cancel").hidden = !startupComplete;
@@ -227,7 +274,7 @@ refreshSettingsSummary();
 refreshControlUi();
 refreshQuizHud();
 refreshAdminLockUi();
-$("manual-mode-enabled").onchange = updateManualModeControls;
+window.addEventListener("storage", handleStorageChange);
 $("open-setup").onclick = openSetup;
 for (const button of document.querySelectorAll(".admin-lock-open")) button.onclick = adminLock.open;
 $("setup-cancel").onclick = () => {
@@ -239,13 +286,13 @@ setupDialog.addEventListener("cancel", (event) => {
   else applyAnimal(gameSettings.animalId);
 });
 setupDialog.addEventListener("close", showPendingQuiz);
+adminLockDialogElement.addEventListener("close", showPendingQuiz);
 $("setup-start").onclick = () => {
   gameSettings = saveGameSettings({
     animalId: draftSettings.animalId,
     manualMode: {
-      enabled: $("manual-mode-enabled").checked,
-      durationMinutes: Number($("quiz-duration").value),
-      questionsToUnlock: Number($("quiz-correct-count").value)
+      ...gameSettings.manualMode,
+      enabled: $("manual-mode-enabled").checked
     }
   });
   quizTimer.configure(gameSettings.manualMode);
