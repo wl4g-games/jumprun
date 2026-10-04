@@ -21,6 +21,16 @@ export async function renderReadyAnimal(canvas, initialAnimalId = DEFAULT_ANIMAL
   let runner = null;
   let previewScale = 1;
   let requestGeneration = 0;
+  let lastPreviewY = 0;
+  let lastGaitFrame = {
+    distance: 0,
+    elapsed: 0,
+    running: false,
+    airborne: false,
+    verticalVelocity: 0,
+    dt: 0,
+    reducedMotion: false
+  };
   async function setAnimal(id) {
     const request = ++requestGeneration;
     if (runner?.animal.id === id) return runner.animal;
@@ -34,6 +44,10 @@ export async function renderReadyAnimal(canvas, initialAnimalId = DEFAULT_ANIMAL
     previewScale = Math.min(1, 1.72 / Math.max(0.1, runner.root.userData.visualSize?.x || 1.72));
     runner.root.rotation.y = -0.08;
     runner.root.scale.setScalar(previewScale);
+    const initialPose = animateAnimalGait(runner.rig, lastGaitFrame);
+    runner.root.position.y = lastPreviewY + initialPose.bob;
+    runner.root.rotation.x = initialPose.roll;
+    runner.root.rotation.z = initialPose.pitch;
     scene.add(runner.root);
     if (previous) {
       scene.remove(previous.root);
@@ -53,7 +67,7 @@ export async function renderReadyAnimal(canvas, initialAnimalId = DEFAULT_ANIMAL
       const airborne = animate && local >= 1.35 && local < 1.95;
       const jumpProgress = airborne ? (local - 1.35) / 0.6 : 0;
       const bounce = airborne ? Math.sin(jumpProgress * Math.PI) : 0;
-      const gaitPose = animateAnimalGait(runner.rig, {
+      lastGaitFrame = {
         distance: seconds * 130,
         elapsed: seconds,
         running: animate && !airborne,
@@ -61,8 +75,10 @@ export async function renderReadyAnimal(canvas, initialAnimalId = DEFAULT_ANIMAL
         verticalVelocity: airborne ? Math.cos(jumpProgress * Math.PI) * 650 : 0,
         dt: 1 / 60,
         reducedMotion: false
-      });
-      runner.root.position.y = bounce * 0.2 + gaitPose.bob;
+      };
+      lastPreviewY = bounce * 0.2;
+      const gaitPose = animateAnimalGait(runner.rig, lastGaitFrame);
+      runner.root.position.y = lastPreviewY + gaitPose.bob;
       runner.root.rotation.x = gaitPose.roll;
       runner.root.rotation.z = gaitPose.pitch;
       runner.root.scale.setScalar(previewScale);
@@ -71,6 +87,12 @@ export async function renderReadyAnimal(canvas, initialAnimalId = DEFAULT_ANIMAL
         dt: animate ? 1 / 60 : 0,
         speed: animate && !airborne ? 360 : 0,
         verticalVelocity: airborne ? Math.cos(jumpProgress * Math.PI) * 650 : 0,
+        paused: !animate
+      });
+      runner.accents?.update({
+        elapsed: seconds,
+        wind: animate && !airborne ? Math.min(1, 360 / 560) : 0,
+        airborne,
         paused: !animate
       });
       renderer.render(scene, camera);

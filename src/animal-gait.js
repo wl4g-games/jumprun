@@ -1,131 +1,299 @@
+import { animalMorphology } from "./animal-morphology.js";
+
 const TAU = Math.PI * 2;
 
+// Baselines used by the original procedural runners. Legacy per-animal values
+// are converted into ratios around these numbers, retaining their character
+// without reintroducing the former extreme joint angles.
+const LEGACY_PRESETS = Object.freeze({
+  biped: Object.freeze({ hipSwing: 0.58, kneeLift: 0.82, ankleFlex: 0.34 }),
+  feline: Object.freeze({ hipSwing: 0.52, kneeLift: 0.72, ankleFlex: 0.3 }),
+  rabbit: Object.freeze({ hipSwing: 0.7, kneeLift: 0.98, ankleFlex: 0.42 }),
+  elephant: Object.freeze({ hipSwing: 0.25, kneeLift: 0.2, ankleFlex: 0.12 }),
+  giraffe: Object.freeze({ hipSwing: 0.4, kneeLift: 0.32, ankleFlex: 0.18 }),
+  bear: Object.freeze({ hipSwing: 0.34, kneeLift: 0.4, ankleFlex: 0.2 }),
+  canid: Object.freeze({ hipSwing: 0.48, kneeLift: 0.64, ankleFlex: 0.29 }),
+  primate: Object.freeze({ hipSwing: 0.5, kneeLift: 0.72, ankleFlex: 0.32 }),
+  penguin: Object.freeze({ hipSwing: 0.24, kneeLift: 0.2, ankleFlex: 0.3 }),
+  eagle: Object.freeze({ hipSwing: 0.3, kneeLift: 0.42, ankleFlex: 0.28 })
+});
+
+/*
+ * Angles here are deliberately conservative. The production animals are
+ * skinned from detailed static meshes, so a believable ten-degree joint
+ * change reads better than a rubbery forty-degree bend. Each preset models a
+ * real footfall pattern; species overrides only tune weight and flexibility.
+ */
 const PRESETS = Object.freeze({
   biped: {
-    strideLength: 148,
-    hipSwing: 0.58,
-    kneeLift: 0.82,
-    ankleFlex: 0.34,
-    appendageSwing: 0.28,
-    jumpTuck: 0.72,
-    bob: 0.035,
-    pitch: 0.035,
-    roll: 0.012,
-    airPitch: 0.11,
-    tailSwing: 0.055,
-    headNod: 0.025
+    strideLength: 170,
+    dutyFactor: 0.43,
+    hipForward: 0.42,
+    hipBack: 0.38,
+    kneeStance: 0.025,
+    kneeSwing: 0.27,
+    ankleStance: 0.045,
+    ankleSwing: 0.15,
+    minStrideLength: 115,
+    maxStrideLength: 175,
+    footPlantTarget: 0.62,
+    plantEfficiency: 0.78,
+    jumpTuck: 0.31,
+    appendageSwing: 0.045,
+    bob: 0.018,
+    pitch: 0.014,
+    posturePitch: -0.085,
+    roll: 0.016,
+    airPitch: 0.055,
+    tailSwing: 0.018,
+    tailLift: 0.025,
+    tailBounce: 0.008,
+    headNod: 0.008,
+    headBias: 0.055,
+    bodyFlex: 0.006
   },
   feline: {
-    strideLength: 132,
-    hipSwing: 0.52,
-    kneeLift: 0.72,
-    ankleFlex: 0.3,
-    appendageSwing: 0.22,
-    jumpTuck: 0.78,
-    bob: 0.028,
-    pitch: 0.03,
-    roll: 0.012,
-    airPitch: 0.08,
-    tailSwing: 0.12,
-    headNod: 0.018
+    strideLength: 148,
+    dutyFactor: 0.36,
+    hipForward: 0.27,
+    hipBack: 0.25,
+    kneeStance: 0.025,
+    kneeSwing: 0.24,
+    ankleStance: 0.035,
+    ankleSwing: 0.12,
+    minStrideLength: 90,
+    maxStrideLength: 145,
+    footPlantTarget: 0.65,
+    plantEfficiency: 0.9,
+    jumpTuck: 0.28,
+    appendageSwing: 0.08,
+    bob: 0.026,
+    pitch: 0.025,
+    posturePitch: -0.012,
+    roll: 0.009,
+    airPitch: 0.06,
+    tailSwing: 0.065,
+    tailLift: 0.07,
+    tailBounce: 0.015,
+    headNod: 0.009,
+    headBias: -0.012,
+    bodyFlex: 0.045
   },
   rabbit: {
-    strideLength: 154,
-    hipSwing: 0.7,
-    kneeLift: 0.98,
-    ankleFlex: 0.42,
-    appendageSwing: 0.18,
-    jumpTuck: 0.94,
-    bob: 0.075,
-    pitch: 0.065,
-    roll: 0.008,
-    airPitch: 0.12,
-    tailSwing: 0.025,
-    headNod: 0.04
+    strideLength: 156,
+    dutyFactor: 0.24,
+    hipForward: 0.29,
+    hipBack: 0.25,
+    kneeStance: 0.04,
+    kneeSwing: 0.34,
+    ankleStance: 0.04,
+    ankleSwing: 0.17,
+    minStrideLength: 110,
+    maxStrideLength: 156,
+    footPlantTarget: 0.6,
+    plantEfficiency: 0.9,
+    jumpTuck: 0.4,
+    appendageSwing: 0.04,
+    bob: 0.058,
+    pitch: 0.045,
+    posturePitch: -0.015,
+    roll: 0.004,
+    airPitch: 0.075,
+    tailSwing: 0.018,
+    tailLift: 0.06,
+    tailBounce: 0.018,
+    headNod: 0.018,
+    headBias: -0.01,
+    bodyFlex: 0.052
   },
   elephant: {
-    strideLength: 188,
-    hipSwing: 0.25,
-    kneeLift: 0.2,
-    ankleFlex: 0.12,
-    appendageSwing: 0.1,
-    jumpTuck: 0.2,
-    bob: 0.015,
-    pitch: 0.012,
-    roll: 0.022,
-    airPitch: 0.035,
-    tailSwing: 0.075,
-    headNod: 0.012
+    strideLength: 205,
+    dutyFactor: 0.64,
+    hipForward: 0.16,
+    hipBack: 0.145,
+    kneeStance: 0.008,
+    kneeSwing: 0.042,
+    ankleStance: 0.012,
+    ankleSwing: 0.028,
+    minStrideLength: 125,
+    maxStrideLength: 170,
+    footPlantTarget: 0.28,
+    plantEfficiency: 1,
+    jumpTuck: 0.055,
+    appendageSwing: 0.025,
+    bob: 0.008,
+    pitch: 0.005,
+    posturePitch: 0,
+    roll: 0.014,
+    airPitch: 0.018,
+    tailSwing: 0.035,
+    tailLift: -0.025,
+    tailBounce: 0.006,
+    headNod: 0.004,
+    headBias: 0,
+    bodyFlex: 0.004
   },
   giraffe: {
-    strideLength: 184,
-    hipSwing: 0.4,
-    kneeLift: 0.32,
-    ankleFlex: 0.18,
-    appendageSwing: 0.12,
-    jumpTuck: 0.34,
-    bob: 0.02,
-    pitch: 0.018,
-    roll: 0.018,
-    airPitch: 0.055,
-    tailSwing: 0.08,
-    headNod: 0.01
+    strideLength: 196,
+    dutyFactor: 0.41,
+    hipForward: 0.2,
+    hipBack: 0.18,
+    kneeStance: 0.015,
+    kneeSwing: 0.105,
+    ankleStance: 0.025,
+    ankleSwing: 0.07,
+    minStrideLength: 125,
+    maxStrideLength: 180,
+    footPlantTarget: 0.45,
+    plantEfficiency: 1,
+    jumpTuck: 0.14,
+    appendageSwing: 0.04,
+    bob: 0.014,
+    pitch: 0.01,
+    posturePitch: -0.006,
+    roll: 0.01,
+    airPitch: 0.032,
+    tailSwing: 0.045,
+    tailLift: 0.015,
+    tailBounce: 0.008,
+    headNod: 0.004,
+    headBias: -0.008,
+    bodyFlex: 0.012
   },
   bear: {
-    strideLength: 166,
-    hipSwing: 0.34,
-    kneeLift: 0.4,
-    ankleFlex: 0.2,
-    appendageSwing: 0.14,
-    jumpTuck: 0.48,
-    bob: 0.038,
-    pitch: 0.025,
-    roll: 0.035,
-    airPitch: 0.065,
-    tailSwing: 0.025,
-    headNod: 0.024
+    strideLength: 182,
+    dutyFactor: 0.6,
+    hipForward: 0.18,
+    hipBack: 0.16,
+    kneeStance: 0.02,
+    kneeSwing: 0.105,
+    ankleStance: 0.025,
+    ankleSwing: 0.065,
+    minStrideLength: 95,
+    maxStrideLength: 145,
+    footPlantTarget: 0.48,
+    plantEfficiency: 1,
+    jumpTuck: 0.17,
+    appendageSwing: 0.05,
+    bob: 0.019,
+    pitch: 0.01,
+    posturePitch: -0.005,
+    roll: 0.026,
+    airPitch: 0.038,
+    tailSwing: 0.015,
+    tailLift: 0,
+    tailBounce: 0.004,
+    headNod: 0.009,
+    headBias: -0.004,
+    bodyFlex: 0.012
   },
   canid: {
-    strideLength: 138,
-    hipSwing: 0.48,
-    kneeLift: 0.64,
-    ankleFlex: 0.29,
-    appendageSwing: 0.2,
-    jumpTuck: 0.68,
-    bob: 0.026,
-    pitch: 0.03,
-    roll: 0.012,
-    airPitch: 0.08,
-    tailSwing: 0.15,
-    headNod: 0.018
+    strideLength: 150,
+    dutyFactor: 0.38,
+    hipForward: 0.245,
+    hipBack: 0.22,
+    kneeStance: 0.025,
+    kneeSwing: 0.215,
+    ankleStance: 0.035,
+    ankleSwing: 0.11,
+    minStrideLength: 90,
+    maxStrideLength: 135,
+    footPlantTarget: 0.62,
+    plantEfficiency: 0.95,
+    jumpTuck: 0.26,
+    appendageSwing: 0.07,
+    bob: 0.024,
+    pitch: 0.022,
+    posturePitch: -0.01,
+    roll: 0.008,
+    airPitch: 0.055,
+    tailSwing: 0.085,
+    tailLift: 0.09,
+    tailBounce: 0.018,
+    headNod: 0.008,
+    headBias: -0.008,
+    bodyFlex: 0.035
   },
   primate: {
-    strideLength: 146,
-    hipSwing: 0.5,
-    kneeLift: 0.72,
-    ankleFlex: 0.32,
-    appendageSwing: 0.3,
-    jumpTuck: 0.74,
-    bob: 0.04,
-    pitch: 0.042,
-    roll: 0.025,
-    airPitch: 0.1,
-    tailSwing: 0.17,
-    headNod: 0.03
+    strideLength: 166,
+    dutyFactor: 0.49,
+    hipForward: 0.17,
+    hipBack: 0.15,
+    kneeStance: 0.025,
+    kneeSwing: 0.145,
+    ankleStance: 0.03,
+    ankleSwing: 0.085,
+    minStrideLength: 90,
+    maxStrideLength: 140,
+    footPlantTarget: 0.58,
+    plantEfficiency: 0.95,
+    jumpTuck: 0.2,
+    appendageSwing: 0.08,
+    bob: 0.022,
+    pitch: 0.018,
+    posturePitch: -0.012,
+    roll: 0.018,
+    airPitch: 0.045,
+    tailSwing: 0.075,
+    tailLift: 0.055,
+    tailBounce: 0.012,
+    headNod: 0.012,
+    headBias: -0.006,
+    bodyFlex: 0.025
   },
   penguin: {
-    strideLength: 116,
-    hipSwing: 0.24,
-    kneeLift: 0.2,
-    ankleFlex: 0.3,
-    appendageSwing: 0.2,
-    jumpTuck: 0.3,
-    bob: 0.026,
-    pitch: 0.02,
-    roll: 0.13,
+    strideLength: 122,
+    dutyFactor: 0.65,
+    hipForward: 0.16,
+    hipBack: 0.15,
+    kneeStance: 0.008,
+    kneeSwing: 0.042,
+    ankleStance: 0.015,
+    ankleSwing: 0.035,
+    minStrideLength: 80,
+    maxStrideLength: 110,
+    footPlantTarget: 0.16,
+    plantEfficiency: 1,
+    jumpTuck: 0.075,
+    appendageSwing: 0.11,
+    bob: 0.018,
+    pitch: 0.006,
+    posturePitch: 0,
+    roll: 0.075,
+    airPitch: 0.032,
+    tailSwing: 0.008,
+    tailLift: 0,
+    tailBounce: 0.003,
+    headNod: 0.006,
+    headBias: 0,
+    bodyFlex: 0.003
+  },
+  eagle: {
+    strideLength: 105,
+    dutyFactor: 0.58,
+    hipForward: 0.19,
+    hipBack: 0.17,
+    kneeStance: 0.018,
+    kneeSwing: 0.18,
+    ankleStance: 0.025,
+    ankleSwing: 0.105,
+    minStrideLength: 82,
+    maxStrideLength: 118,
+    footPlantTarget: 0.36,
+    plantEfficiency: 0.92,
+    jumpTuck: 0.14,
+    appendageSwing: 0.34,
+    bob: 0.02,
+    pitch: 0.009,
+    posturePitch: -0.02,
+    roll: 0.018,
     airPitch: 0.065,
-    tailSwing: 0.02,
-    headNod: 0.018
+    tailSwing: 0,
+    tailLift: 0,
+    tailBounce: 0,
+    headNod: 0.008,
+    headBias: -0.012,
+    bodyFlex: 0.008
   }
 });
 
@@ -139,7 +307,70 @@ const SPECIES_GAITS = Object.freeze({
   panda: "bear",
   fox: "canid",
   monkey: "primate",
-  penguin: "penguin"
+  penguin: "penguin",
+  tiger: "feline",
+  eagle: "eagle",
+  boar: "bear",
+  godzilla: "biped",
+  kong: "primate",
+  scar: "primate"
+});
+
+const SPECIES_PROFILES = Object.freeze({
+  // Leopards are more elastic than lions; lions keep a heavier, lower stride.
+  leopard: Object.freeze({ strideLength: 142, minStrideLength: 105, hipForward: 0.29, hipBack: 0.27, kneeSwing: 0.255, bodyFlex: 0.05 }),
+  lion: Object.freeze({ strideLength: 170, minStrideLength: 112, hipForward: 0.275, hipBack: 0.25, kneeSwing: 0.22, bob: 0.018, bodyFlex: 0.04, tailSwing: 0.048 }),
+  monkey: Object.freeze({
+    dutyFactor: 0.55,
+    hipForward: 0.3,
+    hipBack: 0.27,
+    kneeSwing: 0.18,
+    ankleSwing: 0.1,
+    bodyFlex: 0.035
+  }),
+  tiger: Object.freeze({ strideLength: 166, minStrideLength: 112, hipForward: 0.3, hipBack: 0.28, kneeSwing: 0.25, bob: 0.021, bodyFlex: 0.05 }),
+  eagle: Object.freeze({ strideLength: 105, dutyFactor: 0.58, hipForward: 0.19, hipBack: 0.17, kneeSwing: 0.18 }),
+  boar: Object.freeze({ strideLength: 138, dutyFactor: 0.5, hipForward: 0.25, hipBack: 0.22, kneeSwing: 0.15, bob: 0.018, pitch: 0.018, bodyFlex: 0.012 }),
+  godzilla: Object.freeze({
+    strideLength: 220,
+    minStrideLength: 190,
+    maxStrideLength: 230,
+    dutyFactor: 0.64,
+    hipForward: 0.34,
+    hipBack: 0.31,
+    kneeStance: 0.018,
+    kneeSwing: 0.2,
+    ankleStance: 0.04,
+    ankleSwing: 0.1,
+    jumpTuck: 0.12,
+    bob: 0.009,
+    pitch: 0.008,
+    roll: 0.014,
+    bodyFlex: 0.008,
+    tailSwing: 0.012
+  }),
+  kong: Object.freeze({
+    strideLength: 178,
+    dutyFactor: 0.58,
+    hipForward: 0.24,
+    hipBack: 0.22,
+    kneeSwing: 0.16,
+    ankleSwing: 0.09,
+    bodyFlex: 0.028,
+    foreDutyOffset: 0.04,
+    hindDutyOffset: -0.04
+  }),
+  scar: Object.freeze({
+    strideLength: 184,
+    dutyFactor: 0.54,
+    hipForward: 0.3,
+    hipBack: 0.27,
+    kneeSwing: 0.17,
+    ankleSwing: 0.1,
+    bodyFlex: 0.04,
+    foreDutyOffset: 0.02,
+    hindDutyOffset: -0.05
+  })
 });
 
 function finite(value, fallback = 0) {
@@ -148,6 +379,19 @@ function finite(value, fallback = 0) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function lerp(from, to, amount) {
+  return from + (to - from) * amount;
+}
+
+function mod1(value) {
+  return ((value % 1) + 1) % 1;
+}
+
+function smoothstep(value) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function angle(value) {
@@ -167,6 +411,42 @@ function resolveGait(rig) {
   return SPECIES_GAITS[String(rig?.species || "").toLowerCase()] || "feline";
 }
 
+function legacyRatio(value, reference) {
+  if (!Number.isFinite(value) || !Number.isFinite(reference) || reference <= 0) return null;
+  return clamp(value / reference, 0, 1.35);
+}
+
+function migratedRigProfile(gait, base, source = {}) {
+  const migrated = { ...source };
+  const legacy = LEGACY_PRESETS[gait];
+  const hipRatio = legacyRatio(source.hipSwing, legacy.hipSwing);
+  if (hipRatio !== null) {
+    if (!Number.isFinite(source.hipForward)) migrated.hipForward = base.hipForward * hipRatio;
+    if (!Number.isFinite(source.hipBack)) migrated.hipBack = base.hipBack * hipRatio;
+  }
+  const kneeRatio = legacyRatio(source.kneeLift, legacy.kneeLift);
+  if (kneeRatio !== null && !Number.isFinite(source.kneeSwing)) {
+    migrated.kneeSwing = base.kneeSwing * kneeRatio;
+  }
+  const ankleRatio = legacyRatio(source.ankleFlex, legacy.ankleFlex);
+  if (ankleRatio !== null && !Number.isFinite(source.ankleSwing)) {
+    migrated.ankleSwing = base.ankleSwing * ankleRatio;
+  }
+  return migrated;
+}
+
+function profileFor(rig, gait) {
+  const species = String(rig?.species || "").toLowerCase();
+  const morphology = animalMorphology(species);
+  const base = { ...PRESETS[gait], ...(SPECIES_PROFILES[species] || {}) };
+  return {
+    ...base,
+    posturePitch: finite(morphology.posture?.torsoPitch, base.posturePitch),
+    tailStiffness: clamp(finite(morphology.tail?.stiffness, 0.5), 0, 1),
+    ...migratedRigProfile(gait, base, rig.profile)
+  };
+}
+
 function sideSign(side, index = 0) {
   const value = String(side || "").toLowerCase();
   if (["far", "right", "back"].includes(value)) return -1;
@@ -174,30 +454,10 @@ function sideSign(side, index = 0) {
   return index % 2 ? -1 : 1;
 }
 
-function defaultLegPhase(gait, leg, index) {
-  const near = sideSign(leg.side, index) > 0;
-  const fore = leg.role === "fore";
-  switch (gait) {
-    case "rabbit":
-      return fore ? Math.PI : 0;
-    case "elephant":
-      if (near && !fore) return 0;
-      if (!near && !fore) return Math.PI / 2;
-      if (near && fore) return Math.PI;
-      return Math.PI * 1.5;
-    case "giraffe":
-      return near ? 0 : Math.PI;
-    case "bear":
-      if (near && !fore) return 0;
-      if (near && fore) return Math.PI / 2;
-      if (!near && !fore) return Math.PI;
-      return Math.PI * 1.5;
-    case "biped":
-    case "penguin":
-      return near ? 0 : Math.PI;
-    default:
-      return near === fore ? Math.PI : 0;
-  }
+// Positive anatomical angles move a limb rearward. The generated GLB rigs
+// bend about X while the procedural fallback bends about Z, hence the sign.
+function axisDirection(axis) {
+  return axis === "x" ? 1 : -1;
 }
 
 function bendSign(leg) {
@@ -208,77 +468,182 @@ function bendSign(leg) {
 function setLegPose(leg, offsets = {}) {
   const rest = leg.rest || {};
   const axis = leg.axis || "z";
-  writeRotation(leg.hip, angle(rest.hip) + finite(offsets.hip), axis);
-  writeRotation(leg.knee, angle(rest.knee) + finite(offsets.knee), axis);
-  writeRotation(leg.ankle, angle(rest.ankle) + finite(offsets.ankle), axis);
-  writeRotation(leg.foot, angle(rest.foot) + finite(offsets.foot), axis);
+  const direction = axisDirection(axis);
+  writeRotation(leg.hip, angle(rest.hip) + finite(offsets.hip) * direction, axis);
+  writeRotation(leg.knee, angle(rest.knee) + finite(offsets.knee) * direction, axis);
+  writeRotation(leg.ankle, angle(rest.ankle) + finite(offsets.ankle) * direction, axis);
+  writeRotation(leg.foot, angle(rest.foot) + finite(offsets.foot) * direction, axis);
 }
 
-function groundedLegPose(gait, profile, leg, cycle, index, motionScale) {
-  const theta = cycle + finite(leg.phase, defaultLegPhase(gait, leg, index));
-  const swing = Math.sin(theta);
-  const advancing = Math.max(0, Math.cos(theta));
-  const planted = Math.max(0, -Math.cos(theta));
-  const bend = bendSign(leg);
-  const hind = leg.role === "hind";
-  let hip = profile.hipSwing * swing;
-  let knee = bend * profile.kneeLift * advancing ** 0.72;
-  let ankle = -bend * profile.ankleFlex * advancing;
-  let foot = -hip * (0.42 + planted * 0.28) - knee * 0.24 - ankle * 0.55;
-
+/* Contact times are fractions of a complete stride. Gallopers place the two
+ * hind feet, enter collection, then place the two forefeet. Walkers retain a
+ * long stance interval so at least two or three feet visually carry weight. */
+function contactFraction(gait, leg, index) {
+  if (Number.isFinite(leg.phase)) return mod1(leg.phase / TAU);
+  const near = sideSign(leg.side, index) > 0;
+  const fore = leg.role === "fore";
   switch (gait) {
-    case "biped":
-      knee *= 1 + (hind ? 0.12 : 0);
-      ankle -= bend * planted * profile.ankleFlex * 0.25;
-      break;
-    case "feline":
-      hip *= hind ? 1.08 : 0.92;
-      knee *= hind ? 1.12 : 0.88;
-      ankle *= hind ? 1.08 : 0.86;
-      break;
-    case "rabbit": {
-      const compression = Math.max(0, -Math.sin(theta));
-      hip *= hind ? 1.18 : 0.72;
-      knee = bend * profile.kneeLift * (0.35 + advancing * 0.65 + compression * (hind ? 0.34 : 0.12));
-      ankle = -bend * profile.ankleFlex * (0.3 + advancing * 0.7);
-      foot = -hip * 0.34 - knee * 0.2 - ankle * 0.62;
-      break;
-    }
+    case "rabbit":
+      return fore ? (near ? 0.47 : 0.43) : (near ? 0.035 : 0);
     case "elephant":
-      knee = bend * profile.kneeLift * advancing ** 1.7;
-      ankle = -bend * profile.ankleFlex * advancing ** 1.4;
-      foot = -hip * (0.72 + planted * 0.14) - knee * 0.12 - ankle * 0.45;
-      break;
-    case "giraffe":
-      hip *= hind ? 1.04 : 0.96;
-      knee *= 0.72;
-      ankle *= 0.75;
-      foot = -hip * (0.68 + planted * 0.16) - knee * 0.18 - ankle * 0.45;
-      break;
     case "bear":
-      hip *= hind ? 0.92 : 1.02;
-      knee *= 0.78;
-      ankle *= 0.82;
-      foot = -hip * (0.58 + planted * 0.2) - knee * 0.18 - ankle * 0.5;
-      break;
+      if (near && !fore) return 0;
+      if (near && fore) return 0.25;
+      if (!near && !fore) return 0.5;
+      return 0.75;
+    case "giraffe":
+      return fore ? (near ? 0.54 : 0.44) : (near ? 0.085 : 0);
+    case "feline":
+      return fore ? (near ? 0.55 : 0.45) : (near ? 0.09 : 0);
     case "canid":
-      hip *= hind ? 1.08 : 0.94;
-      knee *= hind ? 1.12 : 0.9;
-      break;
+      return fore ? (near ? 0.54 : 0.44) : (near ? 0.1 : 0);
     case "primate":
-      hip *= hind ? 1.02 : 1.12;
-      knee *= hind ? 1.05 : 1.18;
-      ankle *= hind ? 1 : 0.82;
-      foot = -hip * 0.38 - knee * 0.28 - ankle * 0.5;
-      break;
+      return fore ? (near ? 0.6 : 0.49) : (near ? 0.12 : 0);
+    case "biped":
     case "penguin":
-      hip *= 0.78;
-      knee *= 0.65;
-      ankle = -hip * 0.46 - bend * profile.ankleFlex * advancing * 0.32;
-      foot = -ankle * 0.75;
-      break;
+    case "eagle":
+      return near ? 0 : 0.5;
+    default:
+      return near === fore ? 0.5 : 0;
+  }
+}
+
+function gaitLegProfile(gait, profile, leg) {
+  const hind = leg.role === "hind";
+  const result = {
+    dutyFactor: profile.dutyFactor,
+    hipForward: profile.hipForward,
+    hipBack: profile.hipBack,
+    kneeStance: profile.kneeStance,
+    kneeSwing: profile.kneeSwing,
+    ankleStance: profile.ankleStance,
+    ankleSwing: profile.ankleSwing
+  };
+  if (gait === "rabbit") {
+    const scale = hind ? 1.16 : 0.68;
+    result.hipForward *= scale;
+    result.hipBack *= scale;
+    result.kneeSwing *= hind ? 1.2 : 0.54;
+    result.ankleSwing *= hind ? 1.12 : 0.62;
+    result.dutyFactor += hind ? 0.035 : -0.015;
+  } else if (gait === "feline" || gait === "canid") {
+    result.hipForward *= hind ? 1.08 : 0.92;
+    result.hipBack *= hind ? 1.08 : 0.92;
+    result.kneeSwing *= hind ? 1.08 : 0.9;
+  } else if (gait === "giraffe") {
+    result.hipForward *= hind ? 1.02 : 0.92;
+    result.hipBack *= hind ? 1.02 : 0.92;
+    result.kneeSwing *= hind ? 1 : 0.82;
+  } else if (gait === "bear") {
+    result.hipForward *= hind ? 0.92 : 1;
+    result.hipBack *= hind ? 0.92 : 1;
+    result.kneeSwing *= hind ? 0.9 : 1;
+  } else if (gait === "primate") {
+    result.hipForward *= hind ? 0.95 : 1.06;
+    result.hipBack *= hind ? 0.95 : 1.06;
+    result.kneeSwing *= hind ? 0.94 : 1.08;
+  }
+  result.dutyFactor += hind
+    ? finite(profile.hindDutyOffset)
+    : finite(profile.foreDutyOffset);
+  result.dutyFactor = clamp(result.dutyFactor, 0.2, 0.82);
+  return result;
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const ordered = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(ordered.length / 2);
+  return ordered.length % 2
+    ? ordered[middle]
+    : (ordered[middle - 1] + ordered[middle]) * 0.5;
+}
+
+function resolveStrideMetrics(rig, gait, profile) {
+  const fallbackStride = Math.max(24, finite(profile.strideLength, PRESETS[gait].strideLength));
+  const target = clamp(finite(profile.footPlantTarget, 0.6), 0.1, 0.9);
+  const efficiency = clamp(finite(profile.plantEfficiency, 1), 0.5, 1);
+  const measured = [];
+
+  for (const leg of rig?.legs || []) {
+    const worldReach = finite(leg.worldReach, -1);
+    if (worldReach <= 0.05) continue;
+    const anatomy = gaitLegProfile(gait, profile, leg);
+    const footCoverage = worldReach
+      * (Math.sin(anatomy.hipForward) + Math.sin(anatomy.hipBack))
+      * efficiency;
+    measured.push({ leg, anatomy, worldReach, footCoverage });
   }
 
+  const suggested = median(measured.map(({ anatomy, footCoverage }) => (
+    footCoverage * 100 / Math.max(0.01, anatomy.dutyFactor * target)
+  )));
+  const minimum = Math.max(24, finite(profile.minStrideLength, fallbackStride * 0.65));
+  const maximum = Math.max(minimum, finite(profile.maxStrideLength, fallbackStride));
+  const strideLength = suggested === null ? fallbackStride : clamp(suggested, minimum, maximum);
+
+  return {
+    gait,
+    species: String(rig?.species || ""),
+    measured: measured.length > 0,
+    fallbackStrideLength: fallbackStride,
+    strideLength,
+    legs: measured.map(({ leg, anatomy, worldReach, footCoverage }) => {
+      const stanceTravel = strideLength * anatomy.dutyFactor / 100;
+      return {
+        id: leg.id || "leg",
+        role: leg.role || "hind",
+        worldReach,
+        dutyFactor: anatomy.dutyFactor,
+        footCoverage,
+        stanceTravel,
+        coverageRatio: footCoverage / Math.max(0.001, stanceTravel)
+      };
+    })
+  };
+}
+
+/**
+ * Reports the distance-based stride chosen for a rig. Real rigs provide
+ * `worldReach`; lightweight fallbacks retain their authored stride unchanged.
+ */
+export function animalGaitMetrics(rig) {
+  if (!rig) return null;
+  const gait = resolveGait(rig);
+  return resolveStrideMetrics(rig, gait, profileFor(rig, gait));
+}
+
+function groundedLegPose(gait, profile, leg, stridePhase, index, motionScale) {
+  const anatomy = gaitLegProfile(gait, profile, leg);
+  const phase = mod1(stridePhase - contactFraction(gait, leg, index));
+  const bend = bendSign(leg);
+  let hip;
+  let knee;
+  let ankle;
+  let support = 0;
+
+  if (phase < anatomy.dutyFactor) {
+    const stance = phase / anatomy.dutyFactor;
+    support = Math.sin(Math.PI * stance);
+    // A planted foot travels rearward at almost constant speed. Interpolating
+    // sin(angle), rather than angle with easing, approximates that trajectory
+    // without a brittle per-frame IK solver.
+    hip = Math.asin(lerp(-Math.sin(anatomy.hipForward), Math.sin(anatomy.hipBack), stance));
+    // A loaded leg remains almost straight. Compression peaks near mid-stance.
+    knee = bend * (anatomy.kneeStance * (0.45 + support * 0.55));
+    ankle = -bend * anatomy.ankleStance * (0.35 + support * 0.65);
+  } else {
+    const swing = (phase - anatomy.dutyFactor) / (1 - anatomy.dutyFactor);
+    const travel = smoothstep(swing);
+    const clearance = Math.sin(Math.PI * swing) ** 1.15;
+    hip = lerp(anatomy.hipBack, -anatomy.hipForward, travel);
+    // Flex early for toe clearance, then extend before the next contact.
+    knee = bend * (anatomy.kneeStance * 0.35 + anatomy.kneeSwing * clearance);
+    ankle = -bend * (anatomy.ankleStance * 0.25 + anatomy.ankleSwing * clearance);
+  }
+
+  // Keep the paw/sole visually near level instead of letting every joint curl.
+  const foot = -hip * (0.56 + support * 0.16) - knee * 0.24 - ankle * 0.62;
   setLegPose(leg, {
     hip: hip * motionScale,
     knee: knee * motionScale,
@@ -289,30 +654,69 @@ function groundedLegPose(gait, profile, leg, cycle, index, motionScale) {
 
 function airborneLegPose(gait, profile, leg, index, verticalVelocity, motionScale) {
   const trend = clamp(verticalVelocity / 650, -1, 1);
+  const apex = 1 - Math.abs(trend);
+  const landing = Math.max(0, -trend);
   const bend = bendSign(leg);
   const hind = leg.role === "hind";
   const side = sideSign(leg.side, index);
-  let hip = side * 0.1 - trend * 0.05;
-  let tuck = profile.jumpTuck * (0.88 - Math.abs(trend) * 0.14);
-  let knee = bend * tuck;
-  let ankle = -bend * profile.ankleFlex * 0.72;
-  let foot = -ankle * 0.65 - hip * 0.2;
+  let hip = side * 0.018;
+  let knee = bend * profile.jumpTuck;
+  let ankle = -bend * profile.ankleSwing * 0.72;
 
-  if (["feline", "canid", "bear", "elephant", "giraffe", "primate"].includes(gait)) {
-    hip = (hind ? -0.3 : 0.26) + (hind ? trend * 0.1 : -trend * 0.04) + side * 0.035;
-    knee = bend * tuck * (hind ? 1.08 : 0.84);
-  } else if (gait === "rabbit") {
-    const descentTuck = 0.68 + (1 - trend) * 0.18;
-    hip = hind ? -0.48 + trend * 0.16 : 0.38 - trend * 0.08;
-    knee = bend * tuck * descentTuck * (hind ? 1.08 : 0.72);
-    ankle = -bend * profile.ankleFlex * (hind ? 1 : 0.62);
-  } else if (gait === "penguin") {
-    hip = -0.12 + side * 0.055 - trend * 0.035;
-    knee = bend * tuck * 0.52;
-    ankle = -bend * profile.ankleFlex * 0.42;
-    foot = -ankle * 0.72;
+  switch (gait) {
+    case "biped":
+      // Power stroke trails on ascent; feet reach beneath the body for landing.
+      hip = trend * 0.18 + side * 0.018;
+      knee = bend * (profile.jumpTuck * (0.55 + apex * 0.45) - landing * 0.035);
+      ankle = -bend * (0.07 + apex * 0.045);
+      break;
+    case "feline":
+    case "canid":
+      hip = hind ? trend * 0.16 - landing * 0.035 : -0.145 - landing * 0.035;
+      hip += side * 0.012;
+      knee = bend * ((hind ? 0.19 : 0.145) + apex * (hind ? 0.11 : 0.075));
+      ankle = -bend * ((hind ? 0.085 : 0.065) + apex * 0.035);
+      break;
+    case "rabbit":
+      hip = hind ? trend * 0.2 - landing * 0.045 : -0.14 - landing * 0.025;
+      hip += side * 0.008;
+      knee = bend * ((hind ? 0.27 : 0.105) + apex * (hind ? 0.12 : 0.045));
+      ankle = -bend * ((hind ? 0.12 : 0.05) + apex * 0.045);
+      break;
+    case "elephant":
+      // Elephants cannot anatomically tuck; the game jump reads as a heavy vault.
+      hip = (hind ? 0.025 : -0.025) + side * 0.012 - landing * 0.018;
+      knee = bend * (0.018 + apex * 0.018);
+      ankle = -bend * (0.012 + apex * 0.008);
+      break;
+    case "giraffe":
+      hip = (hind ? trend * 0.075 : -0.065) + side * 0.012;
+      knee = bend * (0.075 + apex * 0.045);
+      ankle = -bend * (0.045 + apex * 0.02);
+      break;
+    case "bear":
+      hip = (hind ? trend * 0.09 : -0.075) + side * 0.014;
+      knee = bend * (0.095 + apex * 0.065);
+      ankle = -bend * (0.05 + apex * 0.025);
+      break;
+    case "primate":
+      hip = (hind ? trend * 0.105 : -0.09) + side * 0.018;
+      knee = bend * (0.11 + apex * 0.075);
+      ankle = -bend * (0.055 + apex * 0.03);
+      break;
+    case "penguin":
+      hip = trend * 0.04 + side * 0.016;
+      knee = bend * (0.035 + apex * 0.025);
+      ankle = -bend * (0.025 + apex * 0.012);
+      break;
+    case "eagle":
+      hip = trend * 0.055 + side * 0.014;
+      knee = bend * (0.09 + apex * 0.08 - landing * 0.025);
+      ankle = -bend * (0.055 + apex * 0.035);
+      break;
   }
 
+  const foot = -hip * 0.52 - knee * 0.22 - ankle * 0.64;
   setLegPose(leg, {
     hip: hip * motionScale,
     knee: knee * motionScale,
@@ -321,93 +725,182 @@ function airborneLegPose(gait, profile, leg, index, verticalVelocity, motionScal
   });
 }
 
-function setAppendages(rig, gait, profile, cycle, airborne, running, motionScale) {
+function setAppendages(rig, gait, profile, stridePhase, airborne, running, verticalVelocity, motionScale) {
+  const cycle = stridePhase * TAU;
   for (let index = 0; index < (rig.appendages || []).length; index++) {
     const appendage = rig.appendages[index];
     const rest = appendage.rest || {};
     const kind = String(appendage.kind || "arm").toLowerCase();
+    const side = sideSign(appendage.side, index);
     let shoulder = 0;
     let elbow = 0;
-    if (airborne) {
-      if (kind.includes("wing") || kind.includes("flipper")) {
-        shoulder = -0.62;
-        elbow = 0.1;
-      } else {
-        shoulder = -0.34;
-        elbow = 0.42;
-      }
+
+    if (gait === "eagle" && kind.includes("wing")) {
+      const vertical = clamp(verticalVelocity / 650, -1, 1);
+      const glide = 1 - Math.abs(vertical);
+      const sourceFolded = kind.includes("folded");
+      const fold = sourceFolded
+        ? airborne ? -side * 0.94 : 0
+        : airborne ? side * 0.06 : side * 1.04;
+      const flap = airborne
+        ? -side * Math.sin(cycle * 2 + index * Math.PI) * profile.appendageSwing * (0.3 + Math.max(0, vertical) * 0.7)
+        : -side * Math.sin(cycle + index * Math.PI) * profile.appendageSwing * 0.08;
+      writeRotation(appendage.shoulder, fold * motionScale, "y");
+      writeRotation(appendage.shoulder, flap * motionScale, "z");
+      writeRotation(appendage.elbow, (airborne ? 0.06 + glide * 0.09 : 0.02) * motionScale, "z");
+      continue;
+    }
+
+    if (gait === "penguin" || kind.includes("wing") || kind.includes("flipper")) {
+      const spread = airborne ? 0.36 : 0.07;
+      shoulder = -side * spread;
+      if (running && !airborne) shoulder += -side * Math.sin(cycle + index * Math.PI) * profile.appendageSwing * 0.22;
+      elbow = airborne ? 0.035 : 0;
+    } else if (gait === "biped") {
+      // T. rex arms remain guarded against the chest rather than pumping like a person.
+      shoulder = airborne ? -0.035 : running ? Math.sin(cycle + index * Math.PI) * profile.appendageSwing : 0;
+      elbow = airborne ? 0.055 : running ? 0.025 : 0;
+    } else if (airborne) {
+      shoulder = -0.12;
+      elbow = 0.15;
     } else if (running) {
       const phase = finite(appendage.phase, index * Math.PI);
       shoulder = -Math.sin(cycle + phase) * profile.appendageSwing;
-      elbow = (0.12 + Math.max(0, Math.cos(cycle + phase)) * 0.24) * (kind.includes("wing") ? 0.35 : 1);
-      if (gait === "penguin") shoulder += Math.sin(cycle + phase) * 0.08;
+      elbow = 0.04 + Math.max(0, Math.cos(cycle + phase)) * 0.08;
     }
+
     const axis = appendage.axis || "z";
-    writeRotation(appendage.shoulder, angle(rest.shoulder) + shoulder * motionScale, axis);
-    writeRotation(appendage.elbow, angle(rest.elbow) + elbow * motionScale, axis);
+    const direction = axisDirection(axis);
+    writeRotation(appendage.shoulder, angle(rest.shoulder) + shoulder * direction * motionScale, axis);
+    writeRotation(appendage.elbow, angle(rest.elbow) + elbow * direction * motionScale, axis);
   }
 }
 
-function rootMotion(gait, profile, cycle, airborne, verticalVelocity, running, motionScale) {
+function rootMotion(gait, profile, stridePhase, airborne, verticalVelocity, running, motionScale) {
+  const cycle = stridePhase * TAU;
   if (airborne) {
+    const trend = clamp(verticalVelocity / 650, -1, 1);
     return {
       bob: 0,
-      pitch: clamp(verticalVelocity / 650, -1, 1) * profile.airPitch * motionScale,
-      roll: gait === "penguin" ? Math.sin(cycle) * profile.roll * 0.3 * motionScale : 0
+      pitch: profile.posturePitch + trend * profile.airPitch * motionScale,
+      roll: (gait === "penguin" ? Math.sin(cycle) * profile.roll * 0.22 : 0) * motionScale
     };
   }
-  if (!running) return { bob: 0, pitch: 0, roll: 0 };
+  if (!running) return { bob: 0, pitch: profile.posturePitch, roll: 0 };
 
-  const twice = cycle * 2;
-  let bob = profile.bob * (1 - Math.cos(twice)) * 0.5;
-  let pitch = profile.pitch * Math.sin(twice);
-  let roll = profile.roll * Math.sin(cycle);
+  let beats = 1;
+  if (["biped", "penguin", "eagle"].includes(gait)) beats = 2;
+  if (["elephant", "bear"].includes(gait)) beats = 4;
+  const pulse = (1 - Math.cos(cycle * beats)) * 0.5;
+  let bob = profile.bob * pulse;
+  let pitch = Math.sin(cycle) * profile.pitch;
+  let roll = Math.sin(cycle) * profile.roll;
+
   if (gait === "rabbit") {
-    bob = profile.bob * Math.max(0, Math.sin(cycle));
-    pitch = profile.pitch * Math.sin(cycle + 0.35);
-    roll *= 0.4;
-  } else if (["elephant", "bear"].includes(gait)) {
-    bob = profile.bob * (1 - Math.cos(cycle * 4)) * 0.5;
-    pitch *= 0.45;
+    bob = profile.bob * smoothstep(Math.max(0, Math.sin(cycle)));
+    pitch = Math.sin(cycle) * profile.pitch;
+    roll *= 0.28;
+  } else if (gait === "feline" || gait === "canid" || gait === "primate") {
+    pitch = Math.sin(cycle) * profile.pitch;
+    roll *= 0.65;
+  } else if (gait === "elephant") {
+    pitch = Math.sin(cycle * 2) * profile.pitch;
+    roll = Math.sin(cycle) * profile.roll;
   } else if (gait === "giraffe") {
-    pitch *= 0.42;
-    roll *= 0.72;
+    pitch = Math.sin(cycle) * profile.pitch;
+    roll *= 0.65;
+  } else if (gait === "bear") {
+    pitch = Math.sin(cycle * 2) * profile.pitch * 0.45;
+    roll = Math.sin(cycle) * profile.roll;
   } else if (gait === "penguin") {
     bob = profile.bob * Math.abs(Math.sin(cycle));
-    pitch = profile.pitch * Math.sin(twice) * 0.45;
-    roll = profile.roll * Math.sin(cycle);
+    pitch = Math.sin(cycle * 2) * profile.pitch;
+    roll = Math.sin(cycle) * profile.roll;
+  } else if (gait === "eagle") {
+    bob = profile.bob * Math.abs(Math.sin(cycle));
+    pitch = Math.sin(cycle * 2) * profile.pitch;
+    roll *= 0.35;
   } else if (gait === "biped") {
-    roll *= 0.62;
+    // A running T. rex lowers into its stride; it never rocks upright like a
+    // human runner. The cosine form is zero at the idle/run seam.
+    pitch = -profile.pitch * (1 - Math.cos(cycle));
+    roll *= 0.7;
   }
-  return { bob: bob * motionScale, pitch: pitch * motionScale, roll: roll * motionScale };
+  return {
+    bob: bob * motionScale,
+    pitch: profile.posturePitch + pitch * motionScale,
+    roll: roll * motionScale
+  };
 }
 
-function setTailAndHead(rig, profile, frame, cycle, pose, motionScale) {
-  const elapsed = finite(frame.elapsed);
-  const tailFrequency = frame.running ? cycle : elapsed * 1.7;
+function setBodyJoints(rig, gait, profile, stridePhase, airborne, verticalVelocity, running, motionScale) {
+  const bodyJoints = rig.bodyJoints || [];
+  const cycle = stridePhase * TAU;
+  let wave = 0;
+  if (airborne) wave = -clamp(verticalVelocity / 650, -1, 1) * 0.55;
+  else if (running) wave = Math.sin(cycle - 0.35);
+
+  for (const entry of bodyJoints) {
+    const role = String(entry.role || "spine").toLowerCase();
+    let influence = 1;
+    if (role.includes("pelvis")) influence = -0.62;
+    else if (role.includes("chest") || role.includes("shoulder")) influence = 0.42;
+    if (["elephant", "penguin", "eagle", "biped"].includes(gait)) influence *= 0.45;
+    const value = running || airborne ? wave * profile.bodyFlex * influence * motionScale : 0;
+    writeRotation(entry.joint, angle(entry.rest) + value, entry.axis || "x");
+  }
+}
+
+function setTailAndHead(rig, gait, profile, frame, stridePhase, pose, motionScale) {
+  const cycle = stridePhase * TAU;
+  const active = frame.running || frame.airborne;
+  // Distance remains monotonic across takeoff, so the tail never changes its
+  // oscillator clock merely because the feet left the ground.
+  const locomotionTime = active ? cycle : 0;
+  const verticalDirection = axisDirection(rig.tailJoints?.[0]?.axis || "z");
+  const stiffness = clamp(finite(profile.tailStiffness, 0.5), 0, 1);
+  const tailFreedom = clamp(1 - stiffness * 0.82, 0.12, 1);
+
   for (let index = 0; index < (rig.tailJoints || []).length; index++) {
     const part = rig.tailJoints[index];
-    const wave = Math.sin(tailFrequency - index * 0.48) * profile.tailSwing;
-    const lift = frame.airborne ? 0.1 * Math.exp(-index * 0.42) : 0;
-    writeRotation(part.joint, finite(part.restZ) + (wave * (frame.airborne ? 0.35 : 1) + lift) * motionScale, part.axis || "z");
+    const delay = index * 0.48 * (0.4 + tailFreedom * 0.6);
+    const runningWave = Math.sin(locomotionTime - delay);
+    const lift = profile.tailLift * Math.exp(-index * 0.38);
+    const vertical = lift + runningWave * profile.tailBounce * tailFreedom * motionScale;
+    writeRotation(
+      part.joint,
+      finite(part.restZ) + vertical * verticalDirection,
+      part.axis || "z"
+    );
+    // Yaw supplies the balancing side-to-side sweep missing from a one-axis tail.
+    if (part.joint?.rotation && (part.axis || "z") === "x") {
+      const lateral = Math.sin(locomotionTime - delay - 0.3) * profile.tailSwing * tailFreedom;
+      writeRotation(part.joint, finite(part.restY) + lateral * motionScale, "y");
+    }
   }
+
   if (rig.headPivot) {
-    const nod = frame.running ? Math.sin(cycle * 2 + 0.45) * profile.headNod : Math.sin(elapsed * 1.5) * profile.headNod * 0.2;
-    writeRotation(rig.headPivot, finite(rig.headRestZ) + nod * motionScale - pose.pitch * 0.72, rig.headAxis || "z");
+    const runningNod = active ? Math.sin(cycle * (gait === "elephant" ? 2 : 1)) * profile.headNod : 0;
+    // Counter a little body pitch to keep the gaze steady without freezing it.
+    const downAngle = profile.headBias + runningNod + pose.pitch * 0.42;
+    const axis = rig.headAxis || "z";
+    writeRotation(rig.headPivot, finite(rig.headRestZ) + downAngle * axisDirection(axis) * motionScale, axis);
   }
 }
 
 /**
- * Writes a complete local-space pose from the rig's rest angles. `phase` values
- * are radians; callers may omit them to use the gait's anatomical footfall order.
+ * Writes a complete local-space pose from the rig's rest angles. Leg `phase`
+ * values remain radians, interpreted as the instant of foot contact. All
+ * writes are absolute, so pausing or switching species cannot accumulate pose
+ * drift. Returned body motion is in the runner scene's existing units.
  */
 export function animateAnimalGait(rig, frame = {}) {
   if (!rig) return { bob: 0, pitch: 0, roll: 0 };
   const gait = resolveGait(rig);
-  const profile = { ...PRESETS[gait], ...(rig.profile || {}) };
+  const profile = profileFor(rig, gait);
   const distance = finite(frame.distance);
-  const strideLength = Math.max(24, finite(profile.strideLength, PRESETS[gait].strideLength));
-  const cycle = distance / strideLength * TAU;
+  const strideLength = resolveStrideMetrics(rig, gait, profile).strideLength;
+  const stridePhase = mod1(distance / strideLength);
   const airborne = Boolean(frame.airborne);
   const running = Boolean(frame.running) && !airborne;
   const motionScale = frame.reducedMotion ? 0.28 : 1;
@@ -416,12 +909,13 @@ export function animateAnimalGait(rig, frame = {}) {
   for (let index = 0; index < (rig.legs || []).length; index++) {
     const leg = rig.legs[index];
     if (airborne) airborneLegPose(gait, profile, leg, index, verticalVelocity, motionScale);
-    else if (running) groundedLegPose(gait, profile, leg, cycle, index, motionScale);
+    else if (running) groundedLegPose(gait, profile, leg, stridePhase, index, motionScale);
     else setLegPose(leg);
   }
 
-  setAppendages(rig, gait, profile, cycle, airborne, running, motionScale);
-  const pose = rootMotion(gait, profile, cycle, airborne, verticalVelocity, running, motionScale);
-  setTailAndHead(rig, profile, { ...frame, airborne, running }, cycle, pose, motionScale);
+  setAppendages(rig, gait, profile, stridePhase, airborne, running, verticalVelocity, motionScale);
+  setBodyJoints(rig, gait, profile, stridePhase, airborne, verticalVelocity, running, motionScale);
+  const pose = rootMotion(gait, profile, stridePhase, airborne, verticalVelocity, running, motionScale);
+  setTailAndHead(rig, gait, profile, { ...frame, airborne, running }, stridePhase, pose, motionScale);
   return pose;
 }

@@ -82,6 +82,13 @@ export function createQuizDialog(elements, options) {
     isOpen() {
       return dialog.open;
     },
+    dismiss() {
+      generation++;
+      clearTransition();
+      session = null;
+      answerState = null;
+      if (dialog.open) dialog.close();
+    },
     refreshLanguage() {
       if (session) render();
     }

@@ -43,6 +43,16 @@ export async function createRunnerScene(canvas, initialAnimalId = DEFAULT_ANIMAL
   let animalInstance = null, animalRoot = null, model = null, head = null, rig = null;
   let currentAnimalId = DEFAULT_ANIMAL_ID;
   let animalRequestGeneration = 0;
+  let lastGaitFrame = {
+    distance: 0,
+    elapsed: 0,
+    running: false,
+    airborne: false,
+    verticalVelocity: 0,
+    dt: 0,
+    reducedMotion: false
+  };
+  let lastGaitLean = 0;
   async function setAnimal(id) {
     const request = ++animalRequestGeneration;
     if (animalInstance?.animal.id === id) return animalInstance.animal;
@@ -58,6 +68,12 @@ export async function createRunnerScene(canvas, initialAnimalId = DEFAULT_ANIMAL
     rig = next.rig;
     head = rig.headPivot || model.getObjectByName("head") || model;
     currentAnimalId = next.animal.id;
+    const initialPose = animateAnimalGait(rig, lastGaitFrame);
+    if (previous) {
+      animalRoot.position.copy(previous.root.position);
+      animalRoot.scale.copy(previous.root.scale);
+    }
+    animalRoot.rotation.set(initialPose.roll, 0, initialPose.pitch + lastGaitLean);
     scene.add(animalRoot);
     if (previous) {
       scene.remove(previous.root);
@@ -98,7 +114,7 @@ export async function createRunnerScene(canvas, initialAnimalId = DEFAULT_ANIMAL
   let activeStars = [], deathAge = 0;
   const rubber = createRubberBody();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  let fall = null, lastBodyAngle = -0.1, fallShape = null;
+  let fall = null, lastBodyAngle = 0, fallShape = null;
   let takeoffAge = 10;
   let lastTime = 0, lastJumps = 0, lastElapsed = 0;
   return { setAnimal, getAnimalId: () => currentAnimalId, render(state, now, paused = false) {
@@ -142,7 +158,7 @@ export async function createRunnerScene(canvas, initialAnimalId = DEFAULT_ANIMAL
     camera.updateProjectionMatrix();
     const running = state.phase === "playing" && state.y === 0;
     const airborne = state.phase === "playing" && state.y > 0;
-    const gaitPose = animateAnimalGait(rig, {
+    lastGaitFrame = {
       distance: state.distance,
       elapsed: state.elapsed,
       running,
@@ -150,23 +166,31 @@ export async function createRunnerScene(canvas, initialAnimalId = DEFAULT_ANIMAL
       verticalVelocity: state.vy,
       dt: motionDt,
       reducedMotion: reducedMotion.matches
-    });
+    };
+    const gaitPose = animateAnimalGait(rig, lastGaitFrame);
     animalRoot.position.set((DINO.x + DINO.width / 2) / 100 - 5, state.y / 100 + gaitPose.bob, 0);
     animalRoot.rotation.set(0, 0, 0);
     animalRoot.rotation.x = gaitPose.roll;
-    animalRoot.rotation.z = (state.phase === "playing" ? -0.075 : 0) + gaitPose.pitch + softness.lean;
+    animalRoot.rotation.z = gaitPose.pitch + softness.lean;
+    lastGaitLean = softness.lean;
     if (head && !rig.realistic) head.rotation.z -= softness.lean * 0.5;
     if (fall) {
       const pose = fall.step(dt);
       animalRoot.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), pose.angle);
       animalRoot.position.x += pose.x;
       animalRoot.position.y = pose.y;
-    } else lastBodyAngle = -0.1 + softness.lean;
+    } else lastBodyAngle = animalRoot.rotation.z;
     animalInstance.coat?.update({
       elapsed: state.elapsed,
       dt: motionDt,
       speed: running ? state.speed : 0,
       verticalVelocity: state.vy,
+      paused
+    });
+    animalInstance.accents?.update({
+      elapsed: state.elapsed,
+      wind: running ? Math.min(1, state.speed / 560) : 0,
+      airborne,
       paused
     });
     animalRoot.updateMatrixWorld(true);

@@ -4,7 +4,7 @@ export const DEFAULT_MANUAL_MODE_SETTINGS = Object.freeze({
   questionsToUnlock: 1
 });
 
-const ALLOWED_DURATIONS = Object.freeze([5, 10, 15, 20, 30]);
+const ALLOWED_DURATIONS = Object.freeze([1, 5, 10, 15, 20, 30]);
 const ALLOWED_QUESTION_COUNTS = Object.freeze([1, 2, 3]);
 
 export function normalizeManualModeSettings(settings = {}) {
@@ -22,20 +22,41 @@ export function normalizeManualModeSettings(settings = {}) {
 }
 
 export class ManualQuizTimer {
-  constructor(settings) {
-    this.configure(settings);
+  constructor(settings, stateStore = null) {
+    this.stateStore = stateStore;
+    this.settings = normalizeManualModeSettings(settings);
+    const state = stateStore?.snapshot?.() || {};
+    this.lockEnabled = state.enabled !== false;
+    this.locked = state.locked === true;
+    const savedRemaining = state.remainingSeconds === null || state.remainingSeconds === undefined
+      ? Number.NaN
+      : Number(state.remainingSeconds);
+    this.remainingSeconds = this.locked ? 0 : savedRemaining;
+    if (!Number.isFinite(this.remainingSeconds) || this.remainingSeconds < 0) {
+      this.remainingSeconds = this.settings.durationMinutes * 60;
+    }
+    this.cycleDurationMinutes = Number(state.cycleDurationMinutes) || this.settings.durationMinutes;
+    this.lastPersistedSecond = null;
+    this.persist(true);
   }
 
   configure(settings) {
     this.settings = normalizeManualModeSettings(settings);
-    this.reset();
+    const maximum = this.settings.durationMinutes * 60;
+    if (!this.locked) this.remainingSeconds = Math.min(this.remainingSeconds, maximum);
+    this.cycleDurationMinutes = this.settings.durationMinutes;
+    this.persist(true);
   }
 
   tick(seconds, active) {
-    if (!this.settings.enabled || this.locked || !active || !Number.isFinite(seconds) || seconds <= 0) return false;
+    if (!this.settings.enabled || !this.lockEnabled || this.locked || !active || !Number.isFinite(seconds) || seconds <= 0) return false;
     this.remainingSeconds = Math.max(0, this.remainingSeconds - seconds);
-    if (this.remainingSeconds > 0) return false;
+    if (this.remainingSeconds > 0) {
+      this.persist();
+      return false;
+    }
     this.locked = true;
+    this.persist(true);
     return true;
   }
 
@@ -46,6 +67,27 @@ export class ManualQuizTimer {
   reset() {
     this.locked = false;
     this.remainingSeconds = this.settings.durationMinutes * 60;
+    this.cycleDurationMinutes = this.settings.durationMinutes;
+    this.persist(true);
+  }
+
+  setLockEnabled(enabled) {
+    this.lockEnabled = enabled === true;
+  }
+
+  shouldBlock() {
+    return this.settings.enabled && this.lockEnabled && this.locked;
+  }
+
+  persist(force = false) {
+    const displaySecond = Math.max(0, Math.ceil(this.remainingSeconds));
+    if (!force && displaySecond === this.lastPersistedSecond) return;
+    this.lastPersistedSecond = displaySecond;
+    this.stateStore?.saveTimer?.({
+      locked: this.locked,
+      remainingSeconds: this.remainingSeconds,
+      cycleDurationMinutes: this.cycleDurationMinutes
+    });
   }
 
   formattedRemaining() {

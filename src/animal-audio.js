@@ -69,7 +69,37 @@ export const ANIMAL_AUDIO_PROFILES = Object.freeze({
     note("sine", 1397, 1760, 0.18, 0, 0.12, 18),
     note("sine", 1175, 880, 0.24, 0.11, 0.14, 22),
     note("triangle", 880, 440, 0.34, 0.3, 0.17, 28)
-  ])
+  ]),
+  tiger: profile("audio/animal-calls/tiger.mp3", 0.3, 0.9, 0.2, [
+    note("sawtooth", 196, 147, 0.24, 0, 0.14, 18),
+    note("triangle", 147, 98, 0.34, 0.18, 0.2, 24),
+    note("sine", 82, 55, 0.48, 0.44, 0.18, 9)
+  ]),
+  eagle: profile("audio/animal-calls/eagle.ogg", 0, 0.8, 0.15, [
+    note("triangle", 1760, 1319, 0.11, 0, 0.16, 72),
+    note("sine", 1568, 1047, 0.16, 0.12, 0.14, 54),
+    note("triangle", 988, 659, 0.25, 0.3, 0.13, 32)
+  ]),
+  boar: profile("audio/animal-calls/boar.ogg", 0, 0.65, 0.18, [
+    note("square", 123, 92, 0.16, 0, 0.11, 21),
+    note("sawtooth", 110, 73, 0.22, 0.13, 0.15, 17),
+    note("triangle", 82, 49, 0.36, 0.32, 0.2, 8)
+  ]),
+  godzilla: profile("audio/animal-calls/trex-alligator.ogg", 0.9, 0.8, 0.48, [
+    note("sawtooth", 98, 31, 0.58, 0, 0.2, 12),
+    note("square", 55, 27, 0.7, 0.12, 0.12, 7),
+    note("sine", 42, 24, 0.88, 0.25, 0.24, 3)
+  ], { playbackRate: 0.62, highpass: 30 }),
+  kong: profile("audio/animal-calls/monkey.ogg", 0.04, 0.55, 0.22, [
+    note("square", 220, 165, 0.2, 0, 0.13, 16),
+    note("triangle", 196, 131, 0.3, 0.18, 0.19, 12),
+    note("sine", 98, 65, 0.5, 0.42, 0.22, 5)
+  ], { playbackRate: 0.72 }),
+  scar: profile("audio/animal-calls/monkey.ogg", 0.04, 0.55, 0.2, [
+    note("square", 294, 196, 0.2, 0, 0.12, 22),
+    note("sawtooth", 247, 123, 0.34, 0.17, 0.18, 17),
+    note("triangle", 110, 41, 0.64, 0.42, 0.23, 9)
+  ], { playbackRate: 0.82 })
 });
 
 export function animalAudioProfile(id) {
