@@ -1245,31 +1245,6 @@ html[lang=en] #gesture-guide small {
   outline: 3px solid #8baf73;
   outline-offset: 3px;
 }
-.manual-mode-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 15px;
-}
-.manual-mode-fields label {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 11px;
-  border-radius: 10px;
-  background: #fffefa;
-  color: #576b5a;
-  font-size: 11px;
-}
-.manual-mode-fields select {
-  padding: 7px 30px 7px 10px;
-  font-size: 11px;
-}
-.manual-mode-config.is-disabled .manual-mode-fields,
-.manual-mode-config.is-disabled .setup-note {
-  opacity: .42;
-}
 .setup-note {
   margin: 12px 0 0;
   color: #718071;
@@ -1398,6 +1373,16 @@ html[lang=en] #gesture-guide small {
 .admin-lock-dialog h1 {
   margin: 0 54px 7px 0;
 }
+.admin-auth-panel[hidden],
+.admin-settings-panel[hidden] {
+  display: none;
+}
+.admin-auth-intro {
+  margin: 0 0 4px;
+  color: #667568;
+  font-size: 12px;
+  line-height: 1.6;
+}
 .admin-lock-current {
   margin: 0 0 20px;
   color: #667568;
@@ -1408,6 +1393,33 @@ html[lang=en] #gesture-guide small {
   padding: 13px;
   border-radius: 12px;
   background: #f2f6ec;
+}
+.admin-quiz-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 15px;
+}
+.admin-quiz-fields label {
+  display: grid;
+  gap: 7px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: #f8f7f0;
+  color: #576b5a;
+  font-size: 11px;
+  font-weight: 650;
+}
+.admin-quiz-fields select {
+  width: 100%;
+  padding: 8px 30px 8px 10px;
+  font-size: 11px;
+}
+.admin-settings-note {
+  margin: 13px 0 0;
+  color: #778078;
+  font-size: 10px;
+  line-height: 1.65;
 }
 .admin-password-field {
   display: grid;
@@ -1455,7 +1467,7 @@ html[lang=en] #gesture-guide small {
   .game-top .score-main b { font-size: 15px; }
   .game-top .quiz-score b { min-width: 46px; }
   .manual-mode-heading { align-items: flex-start; }
-  .manual-mode-fields { grid-template-columns: 1fr; }
+  .admin-quiz-fields { grid-template-columns: 1fr; }
   .setup-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 17px; }
   .setup-hero { align-items: flex-start; gap: 11px; margin-bottom: 18px; }
   .setup-hero > span { width: 44px; height: 44px; border-radius: 13px; font-size: 23px; }

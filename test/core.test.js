@@ -6,7 +6,13 @@ import { createAnimalModel, disposeObject3D } from "../src/animal-model.js";
 import { OBSTACLE_SPECIES, obstacleSpecies } from "../src/obstacle-catalog.js";
 import { createObstacleModel } from "../src/obstacle-model.js";
 import { DEFAULT_MANUAL_MODE_SETTINGS, ManualQuizTimer, normalizeManualModeSettings } from "../src/manual-quiz-timer.js";
-import { hasSavedGameSettings, loadGameSettings, saveGameSettings } from "../src/game-settings.js";
+import {
+  applyGameSettings,
+  hasSavedGameSettings,
+  loadGameSettings,
+  mergeQuizPolicySettings,
+  saveGameSettings
+} from "../src/game-settings.js";
 import { QUESTION_BANK, QUESTION_SUBJECTS, localizeQuestion } from "../src/question-bank.js";
 import { ENGLISH_QUESTION_BANK } from "../src/question-bank.en.js";
 import { createQuizSession } from "../src/quiz-session.js";
@@ -148,7 +154,7 @@ test("question bank contains 100 well-formed, balanced questions", () => {
   assert.equal(QUESTION_BANK.length, 100);
   assert.equal(new Set(QUESTION_BANK.map(({ id }) => id)).size, 100);
   assert.equal(new Set(QUESTION_BANK.map(({ prompt }) => prompt)).size, 100);
-  const expectedCounts = { "语文": 13, "数学": 17, "英语": 10, "地理": 13, "物理": 13, "中国历史": 14, "世界历史": 10, "金融": 10 };
+  const expectedCounts = { "语文": 16, "数学": 13, "英语": 6, "地理": 13, "物理": 13, "中国历史": 16, "世界历史": 13, "金融": 10 };
   assert.deepEqual(Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [
     subject,
     QUESTION_BANK.filter((item) => item.subject === subject).length
@@ -184,17 +190,61 @@ test("quiz session counts only correct answers and unlocks at the configured goa
   assert.equal(result.completed, true);
 });
 
-test("manual controls default off with a five-minute, one-answer quiz", () => {
+test("manual controls default off with a three-minute, one-answer quiz", () => {
   assert.deepEqual(normalizeManualModeSettings(), DEFAULT_MANUAL_MODE_SETTINGS);
   assert.equal(new ManualQuizTimer().tick(3600, true), false);
-  const timer = new ManualQuizTimer({ enabled: true, durationMinutes: 5, questionsToUnlock: 1 });
-  assert.equal(timer.tick(299, true), false);
+  const timer = new ManualQuizTimer({ enabled: true, durationMinutes: 3, questionsToUnlock: 1 });
+  assert.equal(timer.tick(179, true), false);
   assert.equal(timer.tick(1, true), true);
   assert.equal(timer.locked, true);
   timer.unlock();
   assert.equal(timer.locked, false);
-  assert.equal(timer.remainingSeconds, 300);
+  assert.equal(timer.remainingSeconds, 180);
   assert.equal(timer.settings.questionsToUnlock, 1);
+});
+
+test("ordinary setup keeps quiz rules behind the administrator gate", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  assert.doesNotMatch(html, /id="quiz-duration"|id="quiz-correct-count"/);
+  assert.match(html, /id="admin-auth-panel"/);
+  assert.match(html, /id="admin-settings-panel"[^>]*hidden/);
+  assert.match(html, /id="admin-quiz-duration"/);
+  assert.match(html, /id="admin-quiz-correct-count"/);
+});
+
+test("advanced rules persist without skipping the unfinished first setup", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value)
+  };
+  const staged = applyGameSettings({
+    animalId: "trex",
+    manualMode: { enabled: false, durationMinutes: 10, questionsToUnlock: 3 }
+  }, { persist: true, setupComplete: false, storage });
+  assert.equal(hasSavedGameSettings(storage), false);
+  assert.equal(staged.manualMode.durationMinutes, 10);
+  assert.equal(staged.manualMode.questionsToUnlock, 3);
+  assert.deepEqual(loadGameSettings(storage), staged);
+
+  applyGameSettings(staged, { persist: true, setupComplete: true, storage });
+  assert.equal(hasSavedGameSettings(storage), true);
+  assert.deepEqual(loadGameSettings(storage), staged);
+});
+
+test("cross-tab sync merges only parent-managed quiz policy", () => {
+  const current = {
+    animalId: "lion",
+    manualMode: { enabled: true, durationMinutes: 30, questionsToUnlock: 1 }
+  };
+  const remote = {
+    animalId: "rabbit",
+    manualMode: { enabled: false, durationMinutes: 1, questionsToUnlock: 3 }
+  };
+  assert.deepEqual(mergeQuizPolicySettings(current, remote), {
+    animalId: "lion",
+    manualMode: { enabled: true, durationMinutes: 1, questionsToUnlock: 3 }
+  });
 });
 
 test("animal and manual quiz choices persist without reconfiguration", () => {

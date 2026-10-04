@@ -10,15 +10,40 @@ import { ENGLISH_QUESTION_BANK } from "../src/question-bank.en.js";
 import { createWeightedQuestionPicker } from "../src/quiz-session.js";
 
 const EXPECTED_COUNTS = Object.freeze({
-  "语文": 13,
-  "数学": 17,
-  "英语": 10,
+  "语文": 16,
+  "数学": 13,
+  "英语": 6,
   "地理": 13,
   "物理": 13,
-  "中国历史": 14,
-  "世界历史": 10,
+  "中国历史": 16,
+  "世界历史": 13,
   "金融": 10
 });
+const SUBJECT_PREFIXES = Object.freeze({
+  "语文": "cn",
+  "数学": "ma",
+  "英语": "en",
+  "地理": "ge",
+  "物理": "ph",
+  "中国历史": "ch",
+  "世界历史": "wh",
+  "金融": "fi"
+});
+
+function largestRemainderCounts(weights, total) {
+  const weightTotal = Object.values(weights).reduce((sum, item) => sum + item, 0);
+  const entries = Object.entries(weights).map(([subject, weight], order) => {
+    const exact = total * weight / weightTotal;
+    return { subject, count: Math.floor(exact), remainder: exact % 1, order };
+  });
+  let unassigned = total - entries.reduce((sum, entry) => sum + entry.count, 0);
+  for (const entry of [...entries].sort((a, b) => b.remainder - a.remainder || a.order - b.order)) {
+    if (unassigned === 0) break;
+    entry.count++;
+    unassigned--;
+  }
+  return Object.fromEntries(entries.map(({ subject, count }) => [subject, count]));
+}
 
 function seededRandom(seed = 0x5eed1234) {
   let state = seed >>> 0;
@@ -32,27 +57,28 @@ test("100-question curriculum follows the eight requested subject proportions", 
   assert.equal(QUESTION_BANK.length, 100);
   assert.deepEqual(QUESTION_SUBJECTS, Object.keys(EXPECTED_COUNTS));
   assert.deepEqual(SUBJECT_WEIGHTS, {
-    "语文": 4,
-    "数学": 5,
-    "英语": 3,
+    "语文": 5,
+    "数学": 4,
+    "英语": 2,
     "地理": 4,
     "物理": 4,
-    "中国历史": 4,
-    "世界历史": 3,
+    "中国历史": 5,
+    "世界历史": 4,
     "金融": 3
   });
+  assert.equal(Object.values(SUBJECT_WEIGHTS).reduce((sum, weight) => sum + weight, 0), 31);
 
   const actualCounts = Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [
     subject,
     QUESTION_BANK.filter((item) => item.subject === subject).length
   ]));
   assert.deepEqual(actualCounts, EXPECTED_COUNTS);
-
-  const totalWeight = Object.values(SUBJECT_WEIGHTS).reduce((sum, weight) => sum + weight, 0);
-  for (const subject of QUESTION_SUBJECTS) {
-    const idealCount = 100 * SUBJECT_WEIGHTS[subject] / totalWeight;
-    assert.ok(Math.abs(actualCounts[subject] - idealCount) < 1, `${subject} should follow its requested weight`);
-  }
+  assert.deepEqual(actualCounts, largestRemainderCounts(SUBJECT_WEIGHTS, 100));
+  assert.deepEqual(QUESTION_BANK.map(({ id }) => id), QUESTION_SUBJECTS.flatMap((subject) => (
+    Array.from({ length: EXPECTED_COUNTS[subject] }, (_, index) => (
+      `${SUBJECT_PREFIXES[subject]}-${String(index + 1).padStart(2, "0")}`
+    ))
+  )));
 });
 
 test("Chinese and English banks are complete, aligned, and use equivalent answer positions", () => {

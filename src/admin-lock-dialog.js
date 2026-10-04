@@ -4,13 +4,31 @@ import {
   validateAdminPassword,
   verifyAdminPassword
 } from "./admin-lock.js";
+import { normalizeManualModeSettings } from "./manual-quiz-timer.js";
+
+function normalizeQuizSettings(settings = {}) {
+  const manualMode = normalizeManualModeSettings({
+    enabled: true,
+    durationMinutes: settings.durationMinutes,
+    questionsToUnlock: settings.questionsToUnlock
+  });
+  return {
+    lockEnabled: settings.lockEnabled !== false,
+    durationMinutes: manualMode.durationMinutes,
+    questionsToUnlock: manualMode.questionsToUnlock
+  };
+}
 
 export function createAdminLockDialog(elements, options) {
   const {
     dialog,
     title,
+    authPanel,
+    settingsPanel,
     current,
     enabled,
+    duration,
+    correctCount,
     password,
     confirmRow,
     confirmation,
@@ -19,53 +37,78 @@ export function createAdminLockDialog(elements, options) {
     save
   } = elements;
   const {
-    stateStore,
     translate,
     storage = globalThis.localStorage,
     cryptoProvider = globalThis.crypto,
-    onChanged
+    getQuizSettings,
+    onSave
   } = options;
+  let phase = "authenticate";
   let firstSetup = false;
   let saving = false;
+  let feedbackKey = "";
 
   function renderCopy() {
-    const state = stateStore.snapshot();
-    title.textContent = translate(firstSetup ? "设置管理员密码" : "管理答题锁");
-    current.textContent = translate(state.enabled ? "答题锁已启用" : "答题锁已停用");
-    save.textContent = translate("验证并保存");
+    if (phase === "settings") {
+      title.textContent = translate("高级答题设置");
+      current.textContent = translate(enabled.checked ? "答题锁已启用" : "答题锁已停用");
+      save.textContent = translate(saving ? "正在保存…" : "保存高级设置");
+      return;
+    }
+    title.textContent = translate(firstSetup ? "设置管理员密码" : "验证管理员密码");
+    save.textContent = translate(saving
+      ? (firstSetup ? "正在设置…" : "正在验证…")
+      : (firstSetup ? "设置密码并继续" : "验证并继续"));
   }
 
   function setBusy(busy) {
     saving = busy;
-    password.disabled = busy;
-    confirmation.disabled = busy;
-    enabled.disabled = busy;
-    cancel.disabled = busy;
-    save.disabled = busy;
-    save.textContent = translate(busy ? "正在验证…" : "验证并保存");
+    for (const element of [password, confirmation, enabled, duration, correctCount, cancel, save]) {
+      element.disabled = busy;
+    }
+    renderCopy();
   }
 
   function showFeedback(message) {
+    feedbackKey = message;
     feedback.textContent = translate(message);
   }
 
+  function clearFeedback() {
+    feedbackKey = "";
+    feedback.textContent = "";
+  }
+
+  function showAdvancedSettings() {
+    const settings = normalizeQuizSettings(getQuizSettings?.());
+    phase = "settings";
+    authPanel.hidden = true;
+    settingsPanel.hidden = false;
+    enabled.checked = settings.lockEnabled;
+    duration.value = String(settings.durationMinutes);
+    correctCount.value = String(settings.questionsToUnlock);
+    clearFeedback();
+    renderCopy();
+    enabled.focus?.();
+  }
+
   function open() {
+    phase = "authenticate";
     firstSetup = !hasAdminPassword(storage);
-    const state = stateStore.snapshot();
-    enabled.checked = state.enabled;
+    authPanel.hidden = false;
+    settingsPanel.hidden = true;
     password.value = "";
     confirmation.value = "";
     password.autocomplete = firstSetup ? "new-password" : "current-password";
     confirmation.autocomplete = firstSetup ? "new-password" : "off";
     confirmRow.hidden = !firstSetup;
-    feedback.textContent = "";
-    renderCopy();
+    clearFeedback();
+    setBusy(false);
     if (!dialog.open) dialog.showModal();
     password.focus();
   }
 
-  async function submit() {
-    if (saving) return;
+  async function authenticate() {
     if (firstSetup && !validateAdminPassword(password.value)) {
       showFeedback("管理员密码至少需要 6 位");
       return;
@@ -89,13 +132,41 @@ export function createAdminLockDialog(elements, options) {
       password.select();
       return;
     }
-    const state = stateStore.setEnabled(enabled.checked);
+    password.value = "";
+    confirmation.value = "";
+    firstSetup = false;
+    showAdvancedSettings();
+  }
+
+  async function saveSettings() {
+    const settings = normalizeQuizSettings({
+      lockEnabled: enabled.checked,
+      durationMinutes: duration.value,
+      questionsToUnlock: correctCount.value
+    });
+    setBusy(true);
+    let accepted = true;
+    try {
+      accepted = await onSave?.(settings) !== false;
+    } catch {
+      accepted = false;
+    }
+    setBusy(false);
+    if (!accepted) {
+      showFeedback("高级设置保存失败");
+      return;
+    }
     dialog.close();
-    onChanged?.(state.enabled);
+  }
+
+  function submit() {
+    if (saving) return;
+    return phase === "settings" ? saveSettings() : authenticate();
   }
 
   cancel.onclick = () => dialog.close();
   save.onclick = submit;
+  enabled.addEventListener("change", renderCopy);
   dialog.addEventListener("cancel", (event) => {
     if (saving) event.preventDefault();
   });
@@ -108,5 +179,11 @@ export function createAdminLockDialog(elements, options) {
     });
   }
 
-  return Object.freeze({ open, refreshLanguage: renderCopy });
+  return Object.freeze({
+    open,
+    refreshLanguage() {
+      renderCopy();
+      if (feedbackKey) feedback.textContent = translate(feedbackKey);
+    }
+  });
 }
