@@ -14,6 +14,8 @@ import { createGameAudio } from "./game-audio.js";
 import { ANIMALS, animalById } from "./animal-catalog.js";
 import { hasSavedGameSettings, loadGameSettings, saveGameSettings } from "./game-settings.js";
 import { ManualQuizTimer } from "./manual-quiz-timer.js";
+import { createQuizLockStateStore } from "./quiz-lock-state.js";
+import { createAdminLockDialog } from "./admin-lock-dialog.js";
 import { createQuizDialog } from "./quiz-dialog.js";
 import { localizeQuestion } from "./question-bank.js";
 import { drawPoseOverlay } from "./pose-overlay.js";
@@ -23,7 +25,8 @@ const video = $("video"), game = createDinoGame(), detector = new LearnedJumpDet
 let startupComplete = hasSavedGameSettings();
 let gameSettings = loadGameSettings();
 let draftSettings = structuredClone(gameSettings);
-const quizTimer = new ManualQuizTimer(gameSettings.manualMode);
+const quizLockState = createQuizLockStateStore();
+const quizTimer = new ManualQuizTimer(gameSettings.manualMode, quizLockState);
 let stream = null, model = null, modelPromise = null, generation = 0, view = null;
 let previousVideoTime = -1, lastInference = 0, lastFrame = 0, lastTracked = -Infinity;
 let inferenceFrame = null, inferenceFrameType = "";
@@ -55,6 +58,7 @@ const status = (message) => {
 };
 applyLanguage();
 const setupDialog = $("setup-dialog");
+const adminLockDialogElement = $("admin-lock-dialog");
 const quiz = createQuizDialog({
   dialog: $("quiz-dialog"),
   subject: $("quiz-subject"),
@@ -72,6 +76,37 @@ const quiz = createQuizDialog({
     $("game-canvas").focus({ preventScroll: true });
   }
 });
+const adminLock = createAdminLockDialog({
+  dialog: adminLockDialogElement,
+  title: $("admin-lock-title"),
+  current: $("admin-lock-current"),
+  enabled: $("admin-lock-enabled"),
+  password: $("admin-password"),
+  confirmRow: $("admin-password-confirm-row"),
+  confirmation: $("admin-password-confirm"),
+  feedback: $("admin-lock-feedback"),
+  cancel: $("admin-lock-cancel"),
+  save: $("admin-lock-save")
+}, {
+  stateStore: quizLockState,
+  translate: t,
+  onChanged: (enabled) => {
+    quizTimer.setLockEnabled(enabled);
+    if (!enabled) quiz.dismiss();
+    refreshSettingsSummary();
+    refreshControlUi();
+    refreshQuizHud();
+    refreshAdminLockUi();
+    lastFrame = 0;
+    showPendingQuiz();
+  }
+});
+
+function showPendingQuiz() {
+  if (!startupComplete || !gameSettings.manualMode.enabled || !quizTimer.shouldBlock()) return;
+  if (setupDialog.open || adminLockDialogElement.open || quiz.isOpen()) return;
+  quiz.start(gameSettings.manualMode.questionsToUnlock);
+}
 
 function applyAnimal(id) {
   const animal = animalById(id);
@@ -145,21 +180,32 @@ function refreshSettingsSummary() {
   const quizRule = getLanguage() === "en"
     ? `${manual.durationMinutes} min · ${manual.questionsToUnlock} correct`
     : `${manual.durationMinutes} 分钟 · 答对 ${manual.questionsToUnlock} 题`;
-  const control = manual.enabled ? `${t("手动模式")} · ${quizRule}` : `${t("体感模式")} · ${t("前置摄像头")}`;
+  const control = manual.enabled
+    ? `${t("手动模式")} · ${quizTimer.lockEnabled ? quizRule : t("答题锁已停用")}`
+    : `${t("体感模式")} · ${t("前置摄像头")}`;
   $("settings-summary").textContent = `${animal.emoji} ${animalName} · ${control}`;
+}
+
+function refreshAdminLockUi() {
+  const copy = t(quizTimer.lockEnabled ? "答题锁已启用" : "答题锁已停用");
+  for (const element of document.querySelectorAll(".admin-lock-status")) element.textContent = copy;
 }
 
 function refreshControlUi() {
   const manual = gameSettings.manualMode.enabled;
   for (const element of document.querySelectorAll(".motion-only")) element.hidden = manual;
-  $("control-instructions").textContent = t(manual
-    ? "手动模式：按空格、↑ 或点按游戏画面开始、跳跃或重来；到时必须答题。"
-    : "体感模式：面对前置摄像头，原地跳一下即可开始、跳跃或重来；无需答题。");
+  let instruction = "体感模式：面对前置摄像头，原地跳一下即可开始、跳跃或重来；无需答题。";
+  if (manual) {
+    instruction = quizTimer.lockEnabled
+      ? "手动模式：按空格、↑ 或点按游戏画面开始、跳跃或重来；到时必须答题。"
+      : "手动模式：按空格、↑ 或点按游戏画面开始、跳跃或重来；管理员已停用答题锁。";
+  }
+  $("control-instructions").textContent = t(instruction);
 }
 
 function refreshQuizHud() {
   const score = $("manual-quiz-time").closest(".quiz-score");
-  score.hidden = !gameSettings.manualMode.enabled;
+  score.hidden = !gameSettings.manualMode.enabled || !quizTimer.lockEnabled;
   $("manual-quiz-time").textContent = quizTimer.formattedRemaining();
   $("quiz-timer-label").textContent = t("答题倒计时");
   score.classList.toggle("is-warning", quizTimer.remainingSeconds <= 60);
@@ -172,7 +218,7 @@ function openSetup() {
 }
 
 function interactionBlocked() {
-  return !startupComplete || setupDialog.open || quiz.isOpen() || sharing;
+  return !startupComplete || setupDialog.open || adminLockDialogElement.open || quiz.isOpen() || sharing;
 }
 
 createAnimalPicker();
@@ -180,8 +226,10 @@ fillSetup(gameSettings);
 refreshSettingsSummary();
 refreshControlUi();
 refreshQuizHud();
+refreshAdminLockUi();
 $("manual-mode-enabled").onchange = updateManualModeControls;
 $("open-setup").onclick = openSetup;
+for (const button of document.querySelectorAll(".admin-lock-open")) button.onclick = adminLock.open;
 $("setup-cancel").onclick = () => {
   applyAnimal(gameSettings.animalId);
   setupDialog.close();
@@ -190,6 +238,7 @@ setupDialog.addEventListener("cancel", (event) => {
   if (!startupComplete) event.preventDefault();
   else applyAnimal(gameSettings.animalId);
 });
+setupDialog.addEventListener("close", showPendingQuiz);
 $("setup-start").onclick = () => {
   gameSettings = saveGameSettings({
     animalId: draftSettings.animalId,
@@ -206,6 +255,7 @@ $("setup-start").onclick = () => {
   refreshSettingsSummary();
   refreshControlUi();
   refreshQuizHud();
+  refreshAdminLockUi();
   lastFrame = 0;
   if (gameSettings.manualMode.enabled) {
     mode = "manual";
@@ -223,6 +273,8 @@ function switchLanguage() {
   refreshSettingsSummary();
   refreshControlUi();
   refreshQuizHud();
+  refreshAdminLockUi();
+  adminLock.refreshLanguage();
   quiz.refreshLanguage();
 }
 for (const button of document.querySelectorAll("[data-language-switch]")) button.onclick = switchLanguage;
@@ -404,7 +456,7 @@ function startGame(nextMode, keepTracking = false) {
     openSetup();
     return;
   }
-  if (nextMode === "manual" && quizTimer.locked) {
+  if (nextMode === "manual" && quizTimer.shouldBlock()) {
     quiz.start(gameSettings.manualMode.questionsToUnlock);
     return;
   }
@@ -521,6 +573,7 @@ $("game-canvas").addEventListener("pointerdown", () => {
   else game.jump();
 });
 window.addEventListener("pagehide", () => {
+  quizTimer.persist(true);
   stopCamera();
 });
 document.addEventListener("visibilitychange", () => {
@@ -622,7 +675,10 @@ createRunnerScene($("game-canvas"), gameSettings.animalId).then((scene) => {
   $("game-message").textContent = `${t("3D \u52A8\u7269\u52A0\u8F7D\u5931\u8D25")}: ${error.message}. ${t("\u8BF7\u5237\u65B0\u91CD\u8BD5\u3002")}`;
 });
 if (startupComplete) {
-  if (gameSettings.manualMode.enabled) mode = "manual";
+  if (gameSettings.manualMode.enabled) {
+    mode = "manual";
+    showPendingQuiz();
+  }
   else startCamera();
 } else {
   openSetup();

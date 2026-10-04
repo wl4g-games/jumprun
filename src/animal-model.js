@@ -679,8 +679,23 @@ const creators = {
   panda: createPanda,
   fox: createFox,
   monkey: createMonkey,
-  penguin: createPenguin
+  penguin: createPenguin,
+  tiger: createLeopard,
+  eagle: createPenguin,
+  boar: createPanda,
+  godzilla: createTrex,
+  kong: createMonkey,
+  scar: createMonkey
 };
+
+const fallbackGaits = Object.freeze({
+  tiger: "feline",
+  eagle: "eagle",
+  boar: "bear",
+  godzilla: "biped",
+  kong: "primate",
+  scar: "primate"
+});
 
 export function disposeObject3D(root) {
   const geometries = new Set();
@@ -705,6 +720,8 @@ export function disposeObject3D(root) {
 export function createAnimalModel(id) {
   const animal = animalById(id);
   const { model, rig } = creators[animal.id]();
+  rig.species = animal.id;
+  if (fallbackGaits[animal.id]) rig.gait = fallbackGaits[animal.id];
   model.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(model);
   const size = bounds.getSize(new THREE.Vector3());

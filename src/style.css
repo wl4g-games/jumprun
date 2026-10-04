@@ -1061,7 +1061,8 @@ html[lang=en] #gesture-guide small {
 }
 
 .setup-dialog,
-.quiz-dialog {
+.quiz-dialog,
+.admin-lock-dialog {
   color: #29392f;
   border: 1px solid #cad9c3;
   border-radius: 24px;
@@ -1069,7 +1070,8 @@ html[lang=en] #gesture-guide small {
   box-shadow: 0 28px 80px #1833274d;
 }
 .setup-dialog::backdrop,
-.quiz-dialog::backdrop {
+.quiz-dialog::backdrop,
+.admin-lock-dialog::backdrop {
   background: linear-gradient(145deg, #143b35c7, #234530a8);
   backdrop-filter: blur(7px);
 }
@@ -1110,7 +1112,8 @@ html[lang=en] #gesture-guide small {
   font-size: 30px;
 }
 .setup-dialog h1,
-.quiz-dialog h1 {
+.quiz-dialog h1,
+.admin-lock-dialog h1 {
   margin: 0;
   color: #294c3c;
   font-size: clamp(23px, 4vw, 34px);
@@ -1132,7 +1135,7 @@ html[lang=en] #gesture-guide small {
 }
 .animal-picker {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 .animal-choice {
@@ -1273,6 +1276,24 @@ html[lang=en] #gesture-guide small {
   font-size: 10px;
   line-height: 1.6;
 }
+.admin-lock-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  color: #65765f;
+  font-size: 10px;
+}
+.admin-lock-inline button,
+.quiz-admin-open {
+  padding: 7px 10px;
+  font-size: 10px;
+}
+.admin-lock-status {
+  color: #65765f;
+  font-size: 10px;
+}
 .setup-actions {
   display: flex;
   justify-content: flex-end;
@@ -1366,6 +1387,59 @@ html[lang=en] #gesture-guide small {
   color: #7b493d;
   background: #fbede7;
 }
+.quiz-admin-open {
+  display: block;
+  margin: 4px 0 0 auto;
+}
+.admin-lock-dialog {
+  width: min(520px, calc(100vw - 28px));
+  padding: clamp(22px, 4vw, 34px);
+}
+.admin-lock-dialog h1 {
+  margin: 0 54px 7px 0;
+}
+.admin-lock-current {
+  margin: 0 0 20px;
+  color: #667568;
+  font-size: 12px;
+}
+.admin-lock-toggle {
+  justify-content: space-between;
+  padding: 13px;
+  border-radius: 12px;
+  background: #f2f6ec;
+}
+.admin-password-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  color: #506354;
+  font-size: 11px;
+  font-weight: 650;
+}
+.admin-password-field[hidden] {
+  display: none;
+}
+.admin-password-field input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #cfd9c9;
+  border-radius: 10px;
+  background: #fffefa;
+  font: inherit;
+}
+.admin-local-note {
+  margin: 16px 0 0;
+  color: #778078;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.admin-lock-feedback {
+  min-height: 18px;
+  margin: 10px 0 0;
+  color: #a04436;
+  font-size: 11px;
+}
 @media (max-width: 800px) {
   .animal-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .game-top .scores { gap: 8px; }
@@ -1387,4 +1461,5 @@ html[lang=en] #gesture-guide small {
   .setup-hero > span { width: 44px; height: 44px; border-radius: 13px; font-size: 23px; }
   .animal-choice { min-height: 61px; }
   .quiz-dialog { width: calc(100vw - 16px); padding: 20px 16px; }
+  .admin-lock-dialog { width: calc(100vw - 16px); padding: 20px 17px; }
 }

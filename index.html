@@ -47,7 +47,9 @@
       <section class="setup-grid">
         <div class="preference-actions">
           <button id="open-setup" type="button" data-i18n="选择动物与控制方式">选择动物与控制方式</button>
+          <button class="admin-lock-open" type="button" data-i18n="管理员">管理员</button>
           <span id="settings-summary"></span>
+          <span class="admin-lock-status"></span>
         </div>
         <div class="camera-actions motion-only"><button id="start-button" data-i18n="开启前置摄像头">开启前置摄像头</button><button id="stop-button" disabled data-i18n="关闭摄像头">关闭摄像头</button></div>
         <div class="instructions">
@@ -63,15 +65,16 @@
 
 <dialog id="setup-dialog" class="setup-dialog" aria-labelledby="setup-title">
   <button class="dialog-language" data-language-switch type="button" aria-label="Switch to English">EN</button>
-  <div class="setup-hero"><span aria-hidden="true">🌿</span><div><h1 id="setup-title" data-i18n="出发前，选一位弹跳伙伴">出发前，选一位弹跳伙伴</h1><p data-i18n="默认是霸王龙，也可以从十种动物中选择。">默认是霸王龙，也可以从十种动物中选择。</p></div></div>
+  <div class="setup-hero"><span aria-hidden="true">🌿</span><div><h1 id="setup-title" data-i18n="出发前，选一位弹跳伙伴">出发前，选一位弹跳伙伴</h1><p data-i18n="默认是霸王龙，也可以从十六种动物中选择。">默认是霸王龙，也可以从十六种动物中选择。</p></div></div>
   <section aria-labelledby="animal-title"><h2 id="animal-title" data-i18n="弹跳动物">弹跳动物</h2><div id="animal-picker" class="animal-picker" role="radiogroup" aria-label="弹跳动物" data-i18n-label="弹跳动物"></div></section>
   <section class="manual-mode-config" aria-labelledby="manual-mode-title">
-    <div class="manual-mode-heading"><div><h2 id="manual-mode-title" data-i18n="手动按键模式">手动按键模式</h2><p data-i18n="启用后可按空格、方向键或点按画面跳跃，并强制定时答题；关闭后仅使用摄像头体感跳跃且无需答题。">启用后可按空格、方向键或点按画面跳跃，并强制定时答题；关闭后仅使用摄像头体感跳跃且无需答题。</p></div><label class="switch"><input id="manual-mode-enabled" type="checkbox"><span></span><b data-i18n="启用手动操作">启用手动操作</b></label></div>
+    <div class="manual-mode-heading"><div><h2 id="manual-mode-title" data-i18n="手动按键模式">手动按键模式</h2><p data-i18n="启用后可按空格、方向键或点按画面跳跃；自动答题锁默认开启，可由家长管理员验证后关闭。关闭手动模式后仅使用摄像头体感跳跃且无需答题。">启用后可按空格、方向键或点按画面跳跃；自动答题锁默认开启，可由家长管理员验证后关闭。关闭手动模式后仅使用摄像头体感跳跃且无需答题。</p></div><label class="switch"><input id="manual-mode-enabled" type="checkbox"><span></span><b data-i18n="启用手动操作">启用手动操作</b></label></div>
     <div class="manual-mode-fields">
-      <label><span data-i18n="每轮手动游戏时间">每轮手动游戏时间</span><select id="quiz-duration"><option value="5" selected data-i18n="5 分钟">5 分钟</option><option value="10" data-i18n="10 分钟">10 分钟</option><option value="15" data-i18n="15 分钟">15 分钟</option><option value="20" data-i18n="20 分钟">20 分钟</option><option value="30" data-i18n="30 分钟">30 分钟</option></select></label>
+      <label><span data-i18n="每轮手动游戏时间">每轮手动游戏时间</span><select id="quiz-duration"><option value="1" data-i18n="1 分钟">1 分钟</option><option value="5" selected data-i18n="5 分钟">5 分钟</option><option value="10" data-i18n="10 分钟">10 分钟</option><option value="15" data-i18n="15 分钟">15 分钟</option><option value="20" data-i18n="20 分钟">20 分钟</option><option value="30" data-i18n="30 分钟">30 分钟</option></select></label>
       <label><span data-i18n="答对几题继续">答对几题继续</span><select id="quiz-correct-count"><option value="1" selected data-i18n="1 题">1 题</option><option value="2" data-i18n="2 题">2 题</option><option value="3" data-i18n="3 题">3 题</option></select></label>
     </div>
-    <p class="setup-note" data-i18n="手动模式下，游戏时间到会立即暂停；只有答对后弹窗才会关闭。题库内置 100 道适合约 12 岁的趣题。">手动模式下，游戏时间到会立即暂停；只有答对后弹窗才会关闭。题库内置 100 道适合约 12 岁的趣题。</p>
+    <p class="setup-note" data-i18n="答题锁开启时，游戏时间到会立即暂停；只有答对后弹窗才会关闭。题库内置 100 道适合约 12 岁的趣题。">答题锁开启时，游戏时间到会立即暂停；只有答对后弹窗才会关闭。题库内置 100 道适合约 12 岁的趣题。</p>
+    <div class="admin-lock-inline"><span class="admin-lock-status"></span><button class="admin-lock-open" type="button" data-i18n="管理员设置">管理员设置</button></div>
   </section>
   <div class="setup-actions"><button id="setup-cancel" type="button" hidden data-i18n="取消">取消</button><button id="setup-start" class="primary" type="button" data-i18n="保存并开始冒险">保存并开始冒险</button></div>
 </dialog>
@@ -84,6 +87,19 @@
   <h2 id="quiz-prompt"></h2>
   <div id="quiz-answers" class="quiz-answers"></div>
   <p id="quiz-feedback" class="quiz-feedback" aria-live="polite"></p>
+  <button class="admin-lock-open quiz-admin-open" type="button" data-i18n="家长管理员">家长管理员</button>
+</dialog>
+
+<dialog id="admin-lock-dialog" class="admin-lock-dialog" aria-labelledby="admin-lock-title">
+  <button class="dialog-language" data-language-switch type="button" aria-label="Switch to English">EN</button>
+  <h1 id="admin-lock-title" data-i18n="管理答题锁">管理答题锁</h1>
+  <p id="admin-lock-current" class="admin-lock-current"></p>
+  <label class="admin-lock-toggle switch"><input id="admin-lock-enabled" type="checkbox"><span></span><b data-i18n="启用自动答题倒计时锁">启用自动答题倒计时锁</b></label>
+  <label class="admin-password-field"><span data-i18n="管理员密码">管理员密码</span><input id="admin-password" type="password" minlength="6" required></label>
+  <label id="admin-password-confirm-row" class="admin-password-field"><span data-i18n="确认管理员密码">确认管理员密码</span><input id="admin-password-confirm" type="password" minlength="6" required></label>
+  <p class="admin-local-note" data-i18n="密码使用加盐 PBKDF2 摘要保存在本机，不会保存明文或上传。此保护仅限当前浏览器；清除站点数据、无痕模式或开发者工具可以绕过，并非系统级家长控制。">密码使用加盐 PBKDF2 摘要保存在本机，不会保存明文或上传。此保护仅限当前浏览器；清除站点数据、无痕模式或开发者工具可以绕过，并非系统级家长控制。</p>
+  <p id="admin-lock-feedback" class="admin-lock-feedback" role="alert"></p>
+  <div class="setup-actions"><button id="admin-lock-cancel" type="button" data-i18n="取消">取消</button><button id="admin-lock-save" class="primary" type="button" data-i18n="验证并保存">验证并保存</button></div>
 </dialog>
 
 <script type="module" src="/src/main.js"></script>

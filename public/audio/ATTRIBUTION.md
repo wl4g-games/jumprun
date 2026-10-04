@@ -15,6 +15,12 @@ licenses listed below. Playback uses only a short, quiet excerpt of each file.
 | Fox | `fox.mp3` | Günter Tembrock / Tierstimmenarchiv, [Silver fox rhythmic call series](https://suche.tierstimmenarchiv.de/search/showdetails.html?from_search=true&language=english&unique_identifier=TSA%3A1264_Silberfuchs_Faehe_rhythmische_Lautfolge) | [CC BY-SA 3.0 DE](https://creativecommons.org/licenses/by-sa/3.0/de/) |
 | Monkey | `monkey.ogg` | Karim Ouattara, Alban Lemasson, and Klaus Zuberbühler, [Campbell's monkey “hok” call](https://commons.wikimedia.org/wiki/File:Campbell%27s-Monkeys-Use-Affixation-to-Alter-Call-Meaning-pone.0007808.s001.ogg) | [CC BY 2.5](https://creativecommons.org/licenses/by/2.5/) |
 | Penguin | `penguin.ogg` | Benchill, [Little penguin call](https://commons.wikimedia.org/wiki/File:Little_Penguin_(Eudyptula_minor).ogg) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| Tiger | `tiger.mp3` | Günter Tembrock / Tierstimmenarchiv, [Sumatran tiger long call](https://suche.tierstimmenarchiv.de/search/showdetails.html?from_search=true&language=english&unique_identifier=TSA%3A1358_Sumatratiger_Langlaute) | [CC BY-SA 3.0 DE](https://creativecommons.org/licenses/by-sa/3.0/de/) |
+| Eagle | `eagle.ogg` | US National Park Service, [Bald eagle in Yellowstone](https://commons.wikimedia.org/wiki/File:Bald_Eagle_Yellowstone_National_Park.ogg) | Public domain, US Government work |
+| Wild boar | `boar.ogg` | Erdie, [Pig grunt](https://commons.wikimedia.org/wiki/File:Pig_grunt_-_Erdie.ogg) | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| Godzilla-inspired titan | `trex-alligator.ogg` | Uses the same science-inspired alligator source as T. rex, pitch-shifted lower | Public domain, US Government work |
+| Kong | `monkey.ogg` | Uses the Campbell's monkey source above, pitch-shifted lower | [CC BY 2.5](https://creativecommons.org/licenses/by/2.5/) |
+| Skar King | `monkey.ogg` | Uses the CC BY 2.5 primate source above with a lower playback rate | CC BY 2.5 |
 
 `rabbit.wav` is a 0.55-second excerpt (11.72–12.27 seconds) of the CC0 source,
 converted from 44.1 kHz mono float WAV to 22.05 kHz mono PCM16 with short edge fades. The other local

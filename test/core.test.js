@@ -28,10 +28,10 @@ test("local MediaPipe and trained MLP artifacts are present and compatible", asy
   assert.ok((await stat(wasmUrl)).size > 1_000_000);
 });
 
-test("the selectable roster has ten unique animals and defaults to T. rex", () => {
-  assert.equal(ANIMALS.length, 10);
+test("the selectable roster has sixteen unique animals and defaults to T. rex", () => {
+  assert.equal(ANIMALS.length, 16);
   assert.equal(DEFAULT_ANIMAL_ID, "trex");
-  assert.equal(new Set(ANIMALS.map(({ id }) => id)).size, 10);
+  assert.equal(new Set(ANIMALS.map(({ id }) => id)).size, 16);
   assert.equal(ANIMALS[0].name, "霸王龙");
 });
 
@@ -49,7 +49,7 @@ test("every selectable animal creates a renderable model", () => {
 });
 
 test("animal rigs use the correct number of articulated ground limbs", () => {
-  const expectedLegs = { trex: 2, penguin: 2 };
+  const expectedLegs = { trex: 2, penguin: 2, eagle: 2, godzilla: 2 };
   for (const animal of ANIMALS) {
     const runner = createAnimalModel(animal.id);
     const count = expectedLegs[animal.id] || 4;
@@ -148,9 +148,11 @@ test("question bank contains 100 well-formed, balanced questions", () => {
   assert.equal(QUESTION_BANK.length, 100);
   assert.equal(new Set(QUESTION_BANK.map(({ id }) => id)).size, 100);
   assert.equal(new Set(QUESTION_BANK.map(({ prompt }) => prompt)).size, 100);
-  for (const subject of QUESTION_SUBJECTS) {
-    assert.equal(QUESTION_BANK.filter((item) => item.subject === subject).length, 20);
-  }
+  const expectedCounts = { "语文": 13, "数学": 17, "英语": 10, "地理": 13, "物理": 13, "中国历史": 14, "世界历史": 10, "金融": 10 };
+  assert.deepEqual(Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [
+    subject,
+    QUESTION_BANK.filter((item) => item.subject === subject).length
+  ])), expectedCounts);
   for (const item of QUESTION_BANK) {
     assert.equal(item.options.length, 4, item.id);
     assert.ok(Number.isInteger(item.answer) && item.answer >= 0 && item.answer < item.options.length, item.id);
