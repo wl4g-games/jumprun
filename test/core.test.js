@@ -166,11 +166,11 @@ test("every obstacle species creates a visible model", () => {
   }
 });
 
-test("question bank contains 100 well-formed, balanced questions", () => {
-  assert.equal(QUESTION_BANK.length, 100);
-  assert.equal(new Set(QUESTION_BANK.map(({ id }) => id)).size, 100);
-  assert.equal(new Set(QUESTION_BANK.map(({ prompt }) => prompt)).size, 100);
-  const expectedCounts = { "语文": 16, "数学": 13, "英语": 6, "地理": 13, "物理": 13, "中国历史": 16, "世界历史": 13, "金融": 10 };
+test("question bank contains 150 well-formed, balanced questions", () => {
+  assert.equal(QUESTION_BANK.length, 150);
+  assert.equal(new Set(QUESTION_BANK.map(({ id }) => id)).size, 150);
+  assert.equal(new Set(QUESTION_BANK.map(({ prompt }) => prompt)).size, 150);
+  const expectedCounts = { "语文": 16, "数学": 13, "英语": 6, "地理": 23, "物理": 23, "化学": 10, "中国历史": 16, "世界历史": 33, "金融": 10 };
   assert.deepEqual(Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [
     subject,
     QUESTION_BANK.filter((item) => item.subject === subject).length
@@ -182,7 +182,7 @@ test("question bank contains 100 well-formed, balanced questions", () => {
   }
 });
 
-test("all 100 questions have complete English versions with shared answers", () => {
+test("all 150 questions have complete English versions with shared answers", () => {
   assert.equal(ENGLISH_QUESTION_BANK.length, QUESTION_BANK.length);
   assert.deepEqual(ENGLISH_QUESTION_BANK.map(({ id }) => id), QUESTION_BANK.map(({ id }) => id));
   for (const item of QUESTION_BANK) {

@@ -13,10 +13,11 @@ const EXPECTED_COUNTS = Object.freeze({
   "语文": 16,
   "数学": 13,
   "英语": 6,
-  "地理": 13,
-  "物理": 13,
+  "地理": 23,
+  "物理": 23,
+  "化学": 10,
   "中国历史": 16,
-  "世界历史": 13,
+  "世界历史": 33,
   "金融": 10
 });
 const SUBJECT_PREFIXES = Object.freeze({
@@ -25,6 +26,7 @@ const SUBJECT_PREFIXES = Object.freeze({
   "英语": "en",
   "地理": "ge",
   "物理": "ph",
+  "化学": "che",
   "中国历史": "ch",
   "世界历史": "wh",
   "金融": "fi"
@@ -53,27 +55,28 @@ function seededRandom(seed = 0x5eed1234) {
   };
 }
 
-test("100-question curriculum follows the eight requested subject proportions", () => {
-  assert.equal(QUESTION_BANK.length, 100);
+test("150-question curriculum follows the requested subject proportions", () => {
+  assert.equal(QUESTION_BANK.length, 150);
   assert.deepEqual(QUESTION_SUBJECTS, Object.keys(EXPECTED_COUNTS));
   assert.deepEqual(SUBJECT_WEIGHTS, {
-    "语文": 5,
-    "数学": 4,
-    "英语": 2,
-    "地理": 4,
-    "物理": 4,
-    "中国历史": 5,
-    "世界历史": 4,
-    "金融": 3
+    "语文": 16,
+    "数学": 13,
+    "英语": 6,
+    "地理": 23,
+    "物理": 23,
+    "化学": 10,
+    "中国历史": 16,
+    "世界历史": 33,
+    "金融": 10
   });
-  assert.equal(Object.values(SUBJECT_WEIGHTS).reduce((sum, weight) => sum + weight, 0), 31);
+  assert.equal(Object.values(SUBJECT_WEIGHTS).reduce((sum, weight) => sum + weight, 0), 150);
 
   const actualCounts = Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [
     subject,
     QUESTION_BANK.filter((item) => item.subject === subject).length
   ]));
   assert.deepEqual(actualCounts, EXPECTED_COUNTS);
-  assert.deepEqual(actualCounts, largestRemainderCounts(SUBJECT_WEIGHTS, 100));
+  assert.deepEqual(actualCounts, largestRemainderCounts(SUBJECT_WEIGHTS, 150));
   assert.deepEqual(QUESTION_BANK.map(({ id }) => id), QUESTION_SUBJECTS.flatMap((subject) => (
     Array.from({ length: EXPECTED_COUNTS[subject] }, (_, index) => (
       `${SUBJECT_PREFIXES[subject]}-${String(index + 1).padStart(2, "0")}`
@@ -82,7 +85,7 @@ test("100-question curriculum follows the eight requested subject proportions", 
 });
 
 test("Chinese and English banks are complete, aligned, and use equivalent answer positions", () => {
-  assert.equal(ENGLISH_QUESTION_BANK.length, 100);
+  assert.equal(ENGLISH_QUESTION_BANK.length, 150);
   assert.deepEqual(ENGLISH_QUESTION_BANK.map(({ id }) => id), QUESTION_BANK.map(({ id }) => id));
 
   for (const chinese of QUESTION_BANK) {
@@ -99,7 +102,7 @@ test("questions meet basic age-appropriate quality and answer-position checks", 
   assert.ok(Math.min(...answerPositionCounts) >= 12, "correct choices should not reveal a strong position shortcut");
 
   for (const item of QUESTION_BANK) {
-    assert.match(item.id, /^(cn|ma|en|ge|ph|ch|wh|fi)-\d{2}$/u);
+    assert.match(item.id, /^(cn|ma|en|ge|ph|che|ch|wh|fi)-\d{2}$/u);
     assert.ok(item.prompt.length >= 12 && item.prompt.length <= 100, `${item.id} prompt length`);
     assert.equal(new Set(item.options).size, 4, `${item.id} needs distinct choices`);
     assert.ok(item.options.every((option) => String(option).trim().length > 0), `${item.id} has an empty choice`);
@@ -125,16 +128,16 @@ test("weighted picker exhausts the full bank and avoids recent repeats", () => {
   const recent = [];
   const pickedCounts = Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [subject, 0]));
 
-  for (let index = 0; index < 300; index++) {
+  for (let index = 0; index < 450; index++) {
     const item = picker.next();
     assert.ok(!recent.includes(item.id), `${item.id} repeated inside the recent-question window`);
     recent.push(item.id);
     if (recent.length > 8) recent.shift();
     pickedCounts[item.subject]++;
-    if (index < 100) seenFirstCycle.push(item.id);
+    if (index < 150) seenFirstCycle.push(item.id);
   }
 
-  assert.equal(new Set(seenFirstCycle).size, 100, "all questions should appear before any repeat");
+  assert.equal(new Set(seenFirstCycle).size, 150, "all questions should appear before any repeat");
   assert.deepEqual(pickedCounts, Object.fromEntries(QUESTION_SUBJECTS.map((subject) => [
     subject,
     EXPECTED_COUNTS[subject] * 3
